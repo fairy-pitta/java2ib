@@ -161,7 +161,7 @@ function parseIfStatement(lines: string[], startIndex: number, currentIndent: nu
   const ifLine = lines[i]?.trim() || '';
   const conditionMatch = ifLine.match(/^if \((.+)\)\s*\{?$/);
   if (conditionMatch && conditionMatch[1]) {
-    const condition = convertExpression(conditionMatch[1]);
+    const condition = convertExpression(conditionMatch[1], true); // Preserve case for conditions
     result.push(`${indentStr}IF ${condition} THEN`);
     i++;
 
@@ -175,7 +175,7 @@ function parseIfStatement(lines: string[], startIndex: number, currentIndent: nu
       if (nextLine.startsWith('} else if (')) {
         const elseIfMatch = nextLine.match(/^\}\s*else\s+if\s*\((.+)\)\s*\{?$/);
         if (elseIfMatch && elseIfMatch[1]) {
-          const elseIfCondition = convertExpression(elseIfMatch[1]);
+          const elseIfCondition = convertExpression(elseIfMatch[1], true); // Preserve case for conditions
           result.push(`${indentStr}ELSEIF ${elseIfCondition} THEN`);
           i++;
           i = parseBlock(lines, i, currentIndent + 1, result);
@@ -218,7 +218,7 @@ function parseWhileLoop(lines: string[], startIndex: number, currentIndent: numb
   const whileLine = lines[i]?.trim() || '';
   const conditionMatch = whileLine.match(/^while \((.+)\)\s*\{?$/);
   if (conditionMatch && conditionMatch[1]) {
-    const condition = convertExpression(conditionMatch[1]);
+    const condition = convertExpression(conditionMatch[1], true); // Preserve case for conditions
     result.push(`${indentStr}WHILE ${condition}`);
     i++;
 
@@ -329,7 +329,7 @@ function parseDoWhileLoop(lines: string[], startIndex: number, currentIndent: nu
     const whileLine = lines[i]?.trim() || '';
     const whileMatch = whileLine.match(/^\}\s*while\s*\((.+)\);?$/);
     if (whileMatch && whileMatch[1]) {
-      const condition = convertExpression(whileMatch[1]);
+      const condition = convertExpression(whileMatch[1], true); // Preserve case for conditions
       result.push(`${indentStr}UNTIL NOT (${condition})`);
       i++;
       return { lines: result, nextIndex: i };
@@ -440,7 +440,7 @@ function parseMethodDefinition(lines: string[], startIndex: number, currentInden
         }
         
         // Convert regular line
-        const converted = convertLine(line);
+        const converted = convertLine(line, true); // Pass inMethod=true
         if (converted && converted.trim()) {
           const indent = ' '.repeat((currentIndent + 1) * 4);
           result.push(indent + converted.trim());
@@ -488,9 +488,9 @@ function parseBlock(lines: string[], startIndex: number, indentLevel: number, re
     if (foundOpenBrace && braceCount <= 0 && line.includes('}')) {
       if (line.includes('else')) {
         // Don't increment i here, let the parent handle the else clause
-        break;
+        return i;
       } else {
-        break;
+        return i + 1;
       }
     }
 
@@ -533,7 +533,7 @@ function parseBlock(lines: string[], startIndex: number, indentLevel: number, re
 /**
  * Convert a single line of Java code to IB Pseudocode
  */
-function convertLine(line: string): string {
+function convertLine(line: string, inMethod: boolean = false): string {
   // Don't process comment lines
   const trimmed = line.trim();
   if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.includes('*/') || trimmed === '') {
@@ -575,93 +575,94 @@ function convertLine(line: string): string {
 
   // System.out.println/print
   if (line.includes('System.out.println') || line.includes('System.out.print')) {
-    return convertOutput(line);
+    return convertOutput(line, inMethod);
   }
 
-  // Method calls
-  if (line.match(/^\w+\s*\([^)]*\)$/)) {
+  // Method calls (including static method calls like Math.max)
+  if (line.match(/^\w+\s*\([^)]*\)$/) || line.match(/^\w+\.\w+\s*\([^)]*\)$/)) {
     return convertMethodCall(line);
   }
 
   // Method calls in assignment
-  if (line.match(/^\w+\s*=\s*\w+\s*\([^)]*\)$/)) {
+  if (line.match(/^\w+\s*=\s*\w+\s*\([^)]*\)$/) || line.match(/^\w+\s*=\s*\w+\.\w+\s*\([^)]*\)$/)) {
     return convertMethodCallAssignment(line);
   }
 
   // Handle expressions (logical operators, comparisons, arithmetic, etc.)
   if (line.match(/&&|\|\||!|==|!=|<=|>=|<|>|\+|\-|\*|\/|\(|\)|\b[a-z][a-zA-Z0-9_]*\b/)) {
-    return convertExpression(line);
+    return convertExpression(line, inMethod);
   }
 
   return line;
 }
 
 /**
- * Convert variable declaration: int x = 5 -> X = 5
+ * Convert variable declaration: int x = 5 -> x ← 5
  */
 function convertVariableDeclaration(line: string): string {
   const match = line.match(/^(int|String|boolean|double|float)\s+(\w+)\s*=\s*(.+)/);
   if (match && match[2] && match[3]) {
     const [, , varName, value] = match;
-    const convertedValue = convertExpression(value);
-    return `${varName.toUpperCase()} = ${convertedValue}`;
+    const convertedValue = convertExpression(value, false); // Convert variables to uppercase
+    return `${varName.toUpperCase()} ← ${convertedValue}`;
   }
   return line;
 }
 
 /**
- * Convert simple assignment: x = value -> X = value
+ * Convert simple assignment: x = value -> x ← value
  */
 function convertAssignment(line: string): string {
   const match = line.match(/^([\w.]+)\s*=\s*(.+)/);
   if (match && match[1] && match[2]) {
     const [, varName, value] = match;
-    const convertedValue = convertExpression(value);
-    return `${varName.toUpperCase()} = ${convertedValue}`;
+    const convertedValue = convertExpression(value, false); // Convert variables to uppercase
+    return `${varName.toUpperCase()} ← ${convertedValue}`;
   }
   return line;
 }
 
 /**
- * Convert compound assignment: x += 5 -> X = X + 5
+ * Convert compound assignment: x += 5 -> x ← x + 5
  */
 function convertCompoundAssignment(line: string): string {
   const match = line.match(/^([\w.]+)\s*([+\-*/%])=\s*(.+)/);
   if (match && match[1] && match[2] && match[3]) {
     const [, varName, operator, value] = match;
-    const convertedValue = convertExpression(value);
-    return `${varName.toUpperCase()} = ${varName.toUpperCase()} ${operator} ${convertedValue}`;
+    const convertedValue = convertExpression(value, false); // Convert variables to uppercase
+    const upperVarName = varName.toUpperCase();
+    return `${upperVarName} ← ${upperVarName} ${operator} ${convertedValue}`;
   }
   return line;
 }
 
 /**
- * Convert increment/decrement: x++ -> X = X + 1
+ * Convert increment/decrement: x++ -> x ← x + 1
  */
 function convertIncrementDecrement(line: string): string {
   const incrementMatch = line.match(/^([\w.]+)\+\+$/);
   if (incrementMatch && incrementMatch[1]) {
-    const varName = incrementMatch[1];
-    return `${varName.toUpperCase()} = ${varName.toUpperCase()} + 1`;
+    const varName = incrementMatch[1].toUpperCase();
+    return `${varName} ← ${varName} + 1`;
   }
 
   const decrementMatch = line.match(/^([\w.]+)--$/);
   if (decrementMatch && decrementMatch[1]) {
-    const varName = decrementMatch[1];
-    return `${varName.toUpperCase()} = ${varName.toUpperCase()} - 1`;
+    const varName = decrementMatch[1].toUpperCase();
+    return `${varName} ← ${varName} - 1`;
   }
 
   return line;
 }
 
 /**
- * Convert output statements: System.out.println("Hello") -> output "Hello"
+ * Convert output statements: System.out.println("Hello") -> OUTPUT "Hello"
  */
-function convertOutput(line: string): string {
+function convertOutput(line: string, inMethod: boolean = false): string {
   const match = line.match(/System\.out\.(println|print)\((.+)\)/);
   if (match && match[2]) {
     const [, , content] = match;
-    const convertedContent = convertExpression(content);
+    const convertedContent = convertExpression(content, inMethod);
     return `output ${convertedContent}`;
   }
   return line;
@@ -682,42 +683,50 @@ function convertInput(line: string): string {
 /**
  * Convert expressions (variables, operators, etc.)
  */
-function convertExpression(expr: string): string {
+function convertExpression(expr: string, preserveCase: boolean = false): string {
+  // Convert comparison operators first (to avoid conflicts with ! operator)
+  expr = expr.replace(/!=/g, ' ≠ ');
+  expr = expr.replace(/==/g, ' = ');
+  expr = expr.replace(/<=/g, ' ≤ ');
+  expr = expr.replace(/>=/g, ' >= '); // Keep >= as is per test expectation
+  
   // Convert boolean operators
   expr = expr.replace(/&&/g, ' AND ');
   expr = expr.replace(/\|\|/g, ' OR ');
   expr = expr.replace(/!/g, 'NOT ');
   
-  // Convert comparison operators (without extra spaces)
-  expr = expr.replace(/==/g, ' = ');
-  expr = expr.replace(/!=/g, ' ≠ ');
-  expr = expr.replace(/<=/g, ' ≤ ');
-  expr = expr.replace(/>=/g, ' ≥ ');
-  
   // Clean up multiple spaces
   expr = expr.replace(/\s+/g, ' ').trim();
   
-  // Convert variable names to uppercase (but preserve strings, comments, and keywords)
-  expr = expr.replace(/\b[a-z][a-zA-Z0-9_]*\b/g, (match, offset) => {
-    // Don't convert if it's inside quotes or is a keyword
-    if (match === 'true' || match === 'false' || match === 'null') {
-      return match;
-    }
-    
-    // Don't convert if it's inside a string literal
-    const beforeMatch = expr.substring(0, offset);
-    const quoteCount = (beforeMatch.match(/"/g) || []).length;
-    if (quoteCount % 2 === 1) {
-      return match; // Inside a string
-    }
-    
-    // Don't convert if it's inside a comment
-    if (beforeMatch.includes('//') || beforeMatch.includes('/*')) {
-      return match; // Inside a comment
-    }
-    
-    return match.toUpperCase();
-  });
+  // Convert variable names to uppercase (but preserve strings, comments, and keywords) unless preserveCase is true
+  if (!preserveCase) {
+    expr = expr.replace(/\b[a-z][a-zA-Z0-9_]*\b/g, (match, offset) => {
+      // Don't convert if it's inside quotes or is a keyword
+      if (match === 'true' || match === 'false' || match === 'null') {
+        return match;
+      }
+      
+      // Don't convert if it's inside a string literal
+      const beforeMatch = expr.substring(0, offset);
+      const quoteCount = (beforeMatch.match(/"/g) || []).length;
+      if (quoteCount % 2 === 1) {
+        return match; // Inside a string
+      }
+      
+      // Don't convert if it's inside a comment
+      if (beforeMatch.includes('//') || beforeMatch.includes('/*')) {
+        return match; // Inside a comment
+      }
+      
+      // Don't convert if it's part of a method call (preceded by . or followed by .)
+      const afterMatch = expr.substring(offset + match.length);
+      if (beforeMatch.endsWith('.') || afterMatch.startsWith('.')) {
+        return match; // Part of method call like Math.max or obj.method
+      }
+      
+      return match.toUpperCase();
+    });
+  }
   
   return expr;
 }
@@ -728,7 +737,7 @@ function convertExpression(expr: string): string {
 function convertReturnStatement(line: string): string {
   const match = line.match(/^return\s+(.+)$/);
   if (match && match[1]) {
-    const expr = convertExpression(match[1]);
+    const expr = convertExpression(match[1], true); // Preserve case for return statements
     return `RETURN ${expr}`;
   }
   return line;

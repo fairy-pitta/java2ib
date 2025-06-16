@@ -5,19 +5,19 @@ describe('Basic Java to IB Conversion', () => {
   describe('Variable Declarations and Assignments', () => {
     it('should convert simple variable assignment', () => {
       const javaCode = 'int x = 5;';
-      const expected = 'X = 5';
+      const expected = 'X ← 5';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert string assignment', () => {
       const javaCode = 'String name = "John";';
-      const expected = 'NAME = "John"';
+      const expected = 'NAME ← "John"';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert boolean assignment', () => {
       const javaCode = 'boolean flag = true;';
-      const expected = 'FLAG = true';
+      const expected = 'FLAG ← true';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
@@ -27,9 +27,9 @@ describe('Basic Java to IB Conversion', () => {
         String name = "Alice";
         boolean active = false;
       `;
-      const expected = `X = 5
-NAME = "Alice"
-ACTIVE = false`;
+      const expected = `X ← 5
+NAME ← "Alice"
+ACTIVE ← false`;
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
   });
@@ -37,19 +37,19 @@ ACTIVE = false`;
   describe('Arithmetic Operations', () => {
     it('should convert basic arithmetic expressions', () => {
       const javaCode = 'int result = x + y * 2;';
-      const expected = 'RESULT = X + Y * 2';
+      const expected = 'RESULT ← X + Y * 2';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert compound assignment operators', () => {
       const javaCode = 'x += 5;';
-      const expected = 'X = X + 5';
+      const expected = 'X ← X + 5';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert increment/decrement operators', () => {
       const javaCode = 'x++;';
-      const expected = 'X = X + 1';
+      const expected = 'X ← X + 1';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
   });
@@ -57,19 +57,19 @@ ACTIVE = false`;
   describe('Logical Operations', () => {
     it('should convert logical AND operator', () => {
       const javaCode = 'boolean result = a && b;';
-      const expected = 'RESULT = A AND B';
+      const expected = 'RESULT ← A AND B';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert logical OR operator', () => {
       const javaCode = 'boolean result = a || b;';
-      const expected = 'RESULT = A OR B';
+      const expected = 'RESULT ← A OR B';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert logical NOT operator', () => {
       const javaCode = 'boolean result = !flag;';
-      const expected = 'RESULT = NOT FLAG';
+      const expected = 'RESULT ← NOT FLAG';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
   });
@@ -77,25 +77,25 @@ ACTIVE = false`;
   describe('Comparison Operations', () => {
     it('should convert equality comparison', () => {
       const javaCode = 'boolean equal = x == y;';
-      const expected = 'EQUAL = X = Y';
+      const expected = 'EQUAL ← X = Y';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert inequality comparison', () => {
       const javaCode = 'boolean notEqual = x != y;';
-      const expected = 'NOTEQUAL = X ≠ Y';
+      const expected = 'NOTEQUAL ← X ≠ Y';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert less than comparison', () => {
       const javaCode = 'boolean less = x < y;';
-      const expected = 'LESS = X < Y';
+      const expected = 'LESS ← X < Y';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
 
     it('should convert greater than or equal comparison', () => {
       const javaCode = 'boolean greaterEqual = x >= y;';
-      const expected = 'GREATEREQUAL = X >= Y';
+      const expected = 'GREATEREQUAL ← X >= Y';
       expect(convertJavaToIB(javaCode)).toBe(expected);
     });
   });
@@ -129,14 +129,14 @@ ACTIVE = false`;
   describe('Comments', () => {
     it('should preserve single-line comments', () => {
       const javaCode = '// This is a comment\nint x = 5;';
-      const expected = '// This is a comment\nX = 5';
-      expect(convertJavaToIB(javaCode)).toBe(expected);
+      const expected = '// This is a comment\nX ← 5';
+      expect(convertJavaToIB(javaCode, { preserveComments: true })).toBe(expected);
     });
 
     it('should preserve multi-line comments', () => {
       const javaCode = '/* Multi-line\n   comment */\nint x = 5;';
-      const expected = '/* Multi-line\n   comment */\nX = 5';
-      expect(convertJavaToIB(javaCode)).toBe(expected);
+      const expected = '/* Multi-line\n   comment */\nX ← 5';
+      expect(convertJavaToIB(javaCode, { preserveComments: true })).toBe(expected);
     });
   });
 });
