@@ -4,7 +4,7 @@
  */
 
 export interface ConversionOptions {
-  // Basic conversion options only
+  preserveComments?: boolean;
 }
 
 /**
@@ -37,7 +37,7 @@ function parseAndConvert(code: string, options: ConversionOptions): string {
   let inMultiLineComment = false;
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const line = lines[i]?.trim() || '';
     
     // Skip empty lines
     if (!line) {
@@ -45,19 +45,32 @@ function parseAndConvert(code: string, options: ConversionOptions): string {
       continue;
     }
 
+    // Preserve comments
+    const originalLine = lines[i] || '';
+    const trimmedLine = originalLine.trim();
+    
     // Handle multi-line comments
-    if (line.includes('/*')) {
+    if (trimmedLine.includes('/*')) {
       inMultiLineComment = true;
     }
-    if (line.includes('*/')) {
-      inMultiLineComment = false;
-    }
-
-    // Preserve comments
-    if (options.preserveComments && (line.startsWith('//') || line.startsWith('/*') || inMultiLineComment || line.includes('*/'))) {
-      result.push(lines[i]); // Keep original spacing
+    
+    // Check if this line should be preserved as a comment
+    const isComment = trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || inMultiLineComment || trimmedLine.includes('*/');
+    
+    if (options.preserveComments && isComment) {
+      result.push(originalLine); // Keep original spacing and indentation
       i++;
+      
+      // Update multi-line comment state after processing the line
+      if (trimmedLine.includes('*/')) {
+        inMultiLineComment = false;
+      }
       continue;
+    }
+    
+    // Update multi-line comment state for non-comment lines
+    if (trimmedLine.includes('*/')) {
+      inMultiLineComment = false;
     }
 
     // Parse control structures
@@ -65,6 +78,22 @@ function parseAndConvert(code: string, options: ConversionOptions): string {
     if (parseResult) {
       result.push(...parseResult.lines);
       i = parseResult.nextIndex;
+      
+      // Check if the next non-empty line is another method definition
+      let nextIndex = i;
+      while (nextIndex < lines.length && !lines[nextIndex]?.trim()) {
+        nextIndex++;
+      }
+      
+      if (nextIndex < lines.length) {
+        const nextLine = lines[nextIndex]?.trim() || '';
+        // If next line is another method or constructor, add empty line
+        if (nextLine.match(/^(public|private|protected)\s+(static\s+)?(void|int|String|boolean|double|float|\w+)\s+\w+\s*\(/) ||
+            nextLine.match(/^(public|private|protected)\s+\w+\s*\(/)) {
+          result.push('');
+        }
+      }
+      
       continue;
     }
 
@@ -84,9 +113,17 @@ function parseAndConvert(code: string, options: ConversionOptions): string {
  * Parse control structures (IF, WHILE, FOR, etc.)
  */
 function parseControlStructure(lines: string[], startIndex: number, currentIndent: number): { lines: string[], nextIndex: number } | null {
-  const line = lines[startIndex].trim();
-  const indentStr = ' '.repeat(currentIndent * 4);
-  const innerIndentStr = ' '.repeat((currentIndent + 1) * 4);
+  const line = lines[startIndex]?.trim() || '';
+
+  // Method definition
+  if (line.match(/^(public|private|protected)\s+(static\s+)?(void|int|String|boolean|double|float)\s+\w+\s*\(/)) {
+    return parseMethodDefinition(lines, startIndex, currentIndent);
+  }
+
+  // Constructor definition
+  if (line.match(/^(public|private|protected)\s+\w+\s*\(/)) {
+    return parseMethodDefinition(lines, startIndex, currentIndent);
+  }
 
   // IF statement
   if (line.startsWith('if (')) {
@@ -117,13 +154,12 @@ function parseControlStructure(lines: string[], startIndex: number, currentInden
 function parseIfStatement(lines: string[], startIndex: number, currentIndent: number): { lines: string[], nextIndex: number } {
   const result: string[] = [];
   const indentStr = ' '.repeat(currentIndent * 4);
-  const innerIndentStr = ' '.repeat((currentIndent + 1) * 4);
   let i = startIndex;
 
   // Parse IF condition
-  const ifLine = lines[i].trim();
+  const ifLine = lines[i]?.trim() || '';
   const conditionMatch = ifLine.match(/^if \((.+)\)\s*\{?$/);
-  if (conditionMatch) {
+  if (conditionMatch && conditionMatch[1]) {
     const condition = convertExpression(conditionMatch[1]);
     result.push(`${indentStr}IF ${condition} THEN`);
     i++;
@@ -133,11 +169,11 @@ function parseIfStatement(lines: string[], startIndex: number, currentIndent: nu
 
     // Parse ELSE IF and ELSE
     while (i < lines.length) {
-      const nextLine = lines[i].trim();
+      const nextLine = lines[i]?.trim() || '';
       
       if (nextLine.startsWith('} else if (')) {
         const elseIfMatch = nextLine.match(/^\}\s*else\s+if\s*\((.+)\)\s*\{?$/);
-        if (elseIfMatch) {
+        if (elseIfMatch && elseIfMatch[1]) {
           const elseIfCondition = convertExpression(elseIfMatch[1]);
           result.push(`${indentStr}ELSEIF ${elseIfCondition} THEN`);
           i++;
@@ -147,7 +183,7 @@ function parseIfStatement(lines: string[], startIndex: number, currentIndent: nu
         result.push(`${indentStr}ELSE`);
         i++;
         // Skip the opening brace if it's on the next line
-        if (i < lines.length && lines[i].trim() === '{') {
+        if (i < lines.length && lines[i]?.trim() === '{') {
           i++;
         }
         i = parseBlock(lines, i, currentIndent + 1, result);
@@ -173,9 +209,9 @@ function parseWhileLoop(lines: string[], startIndex: number, currentIndent: numb
   const indentStr = ' '.repeat(currentIndent * 4);
   let i = startIndex;
 
-  const whileLine = lines[i].trim();
+  const whileLine = lines[i]?.trim() || '';
   const conditionMatch = whileLine.match(/^while \((.+)\)\s*\{?$/);
-  if (conditionMatch) {
+  if (conditionMatch && conditionMatch[1]) {
     const condition = convertExpression(conditionMatch[1]);
     result.push(`${indentStr}WHILE ${condition}`);
     i++;
@@ -196,12 +232,12 @@ function parseForLoop(lines: string[], startIndex: number, currentIndent: number
   const indentStr = ' '.repeat(currentIndent * 4);
   let i = startIndex;
 
-  const forLine = lines[i].trim();
+  const forLine = lines[i]?.trim() || '';
   
   // Enhanced FOR loop (for-each)
   const forEachMatch = forLine.match(/^for \(\s*(\w+)\s+(\w+)\s*:\s*(\w+)\s*\)\s*\{?$/);
-  if (forEachMatch) {
-    const [, type, variable, collection] = forEachMatch;
+  if (forEachMatch && forEachMatch[1] && forEachMatch[2] && forEachMatch[3]) {
+    const [, , variable, collection] = forEachMatch;
     result.push(`${indentStr}FOR EACH ${variable} IN ${collection}`);
     i++;
     i = parseBlock(lines, i, currentIndent + 1, result);
@@ -211,7 +247,7 @@ function parseForLoop(lines: string[], startIndex: number, currentIndent: number
 
   // Traditional FOR loop
   const forMatch = forLine.match(/^for \((.+)\)\s*\{?$/);
-  if (forMatch) {
+  if (forMatch && forMatch[1]) {
     const forContent = forMatch[1];
     const parts = forContent.split(';').map(p => p.trim());
     
@@ -219,14 +255,15 @@ function parseForLoop(lines: string[], startIndex: number, currentIndent: number
       const [init, condition, increment] = parts;
       
       // Parse initialization: int i = 0
-      const initMatch = init.match(/^\w+\s+(\w+)\s*=\s*(\d+)$/);
-      if (initMatch) {
-        const [, variable, startValue] = initMatch;
-        
-        // Parse condition: i < 10 or i <= 10
-        const condMatch = condition.match(/^(\w+)\s*([<>]=?)\s*(\d+)$/);
-        if (condMatch) {
-          const [, condVar, operator, endValue] = condMatch;
+      if (init && condition) {
+        const initMatch = init.match(/^\w+\s+(\w+)\s*=\s*(\d+)$/);
+        if (initMatch && initMatch[1] && initMatch[2]) {
+          const [, variable, startValue] = initMatch;
+          
+          // Parse condition: i < 10 or i <= 10
+          const condMatch = condition.match(/^(\w+)\s*([<>]=?)\s*(\d+)$/);
+          if (condMatch && condMatch[1] && condMatch[2] && condMatch[3]) {
+          const [, , operator, endValue] = condMatch;
           
           // Calculate end value based on operator
           let actualEndValue = parseInt(endValue);
@@ -236,20 +273,23 @@ function parseForLoop(lines: string[], startIndex: number, currentIndent: number
           
           // Parse increment: i++ or i += step
           let step = 1;
-          const stepMatch = increment.match(/^\w+\s*\+=\s*(\d+)$/);
-          if (stepMatch) {
-            step = parseInt(stepMatch[1]);
+          if (increment) {
+            const stepMatch = increment.match(/^\w+\s*\+=\s*(\d+)$/);
+            if (stepMatch && stepMatch[1]) {
+              step = parseInt(stepMatch[1]);
+            }
           }
           
-          let forStatement = `${indentStr}FOR ${variable} ← ${startValue} TO ${actualEndValue}`;
-          if (step !== 1) {
-            forStatement += ` STEP ${step}`;
+            let forStatement = `${indentStr}FOR ${variable} ← ${startValue} TO ${actualEndValue}`;
+            if (step !== 1) {
+              forStatement += ` STEP ${step}`;
+            }
+            result.push(forStatement);
+            
+            i++;
+            i = parseBlock(lines, i, currentIndent + 1, result);
+            result.push(`${indentStr}NEXT ${variable}`);
           }
-          result.push(forStatement);
-          
-          i++;
-          i = parseBlock(lines, i, currentIndent + 1, result);
-          result.push(`${indentStr}NEXT ${variable}`);
         }
       }
     }
@@ -274,9 +314,9 @@ function parseDoWhileLoop(lines: string[], startIndex: number, currentIndent: nu
 
   // Parse while condition
   if (i < lines.length) {
-    const whileLine = lines[i].trim();
+    const whileLine = lines[i]?.trim() || '';
     const whileMatch = whileLine.match(/^\}\s*while\s*\((.+)\);?$/);
-    if (whileMatch) {
+    if (whileMatch && whileMatch[1]) {
       const condition = convertExpression(whileMatch[1]);
       result.push(`${indentStr}UNTIL NOT (${condition})`);
       i++;
@@ -287,7 +327,121 @@ function parseDoWhileLoop(lines: string[], startIndex: number, currentIndent: nu
 }
 
 /**
- * Parse a block of code (between braces)
+ * Parse method definition
+ */
+function parseMethodDefinition(lines: string[], startIndex: number, currentIndent: number): { lines: string[], nextIndex: number } {
+  const result: string[] = [];
+  const indentStr = ' '.repeat(currentIndent * 4);
+  let i = startIndex;
+
+  const methodLine = lines[i]?.trim() || '';
+  
+  // Parse method signature (including constructors)
+  let methodMatch = methodLine.match(/^(public|private|protected)\s+(static\s+)?(void|int|String|boolean|double|float|\w+)\s+(\w+)\s*\(([^)]*)\)\s*\{?$/);
+  let isConstructor = false;
+  let returnType = '';
+  let methodName = '';
+  let params = '';
+  
+  if (methodMatch && methodMatch[3] && methodMatch[4]) {
+    // Regular method
+    returnType = methodMatch[3];
+    methodName = methodMatch[4];
+    params = methodMatch[5] || '';
+  } else {
+    // Try constructor pattern (no return type)
+    const constructorMatch = methodLine.match(/^(public|private|protected)\s+(\w+)\s*\(([^)]*)\)\s*\{?$/);
+    if (constructorMatch && constructorMatch[2]) {
+      isConstructor = true;
+      returnType = 'void'; // Constructors are treated as procedures
+      methodName = constructorMatch[2];
+      params = constructorMatch[3] || '';
+    }
+  }
+  
+  if (methodName) {
+    // Parse parameters
+    const paramList = params && params.trim() ? params.split(',').map(p => {
+      const paramMatch = p.trim().match(/^(\w+(?:\[\])?)\s+(\w+)$/);
+      return paramMatch && paramMatch[2] ? paramMatch[2] : p.trim();
+    }).join(', ') : '';
+    
+    // Determine if it's a procedure or function
+    const isVoid = returnType === 'void' || isConstructor;
+    const keyword = isVoid ? 'PROCEDURE' : 'FUNCTION';
+    const endKeyword = isVoid ? 'ENDPROCEDURE' : 'ENDFUNCTION';
+    
+    result.push(`${indentStr}${keyword} ${methodName}(${paramList})`);
+    
+    // Check if opening brace is on the same line as method signature
+    let braceCount = 0;
+    if (methodLine.includes('{')) {
+      braceCount = 1;
+      i++; // Move to next line
+    } else {
+      // Skip to opening brace if not on same line
+      i++;
+      while (i < lines.length && !lines[i]?.includes('{')) {
+        i++;
+      }
+      if (i < lines.length && lines[i]?.includes('{')) {
+        braceCount = 1;
+        i++; // Skip opening brace line
+      }
+    }
+    
+    // Parse method body
+    if (braceCount > 0) {
+      
+      while (i < lines.length && braceCount > 0) {
+        const line = lines[i]?.trim() || '';
+        
+        if (!line) {
+          i++;
+          continue;
+        }
+        
+        // Count braces
+        braceCount += (line.match(/\{/g) || []).length;
+        braceCount -= (line.match(/\}/g) || []).length;
+        
+        // If we hit the closing brace, stop
+        if (braceCount === 0) {
+          break;
+        }
+        
+        // Skip lines that are just braces
+        if (line === '{' || line === '}') {
+          i++;
+          continue;
+        }
+        
+        // Parse nested control structures
+        const parseResult = parseControlStructure(lines, i, currentIndent + 1);
+        if (parseResult) {
+          result.push(...parseResult.lines);
+          i = parseResult.nextIndex;
+          continue;
+        }
+        
+        // Convert regular line
+        const converted = convertLine(line);
+        if (converted && converted.trim()) {
+          const indent = ' '.repeat((currentIndent + 1) * 4);
+          result.push(indent + converted.trim());
+        }
+        i++;
+      }
+    }
+    
+    result.push(`${indentStr}${endKeyword}`);
+  }
+
+  return { lines: result, nextIndex: i + 1 };
+}
+
+/**
+ * Parse block of code within braces
  */
 function parseBlock(lines: string[], startIndex: number, indentLevel: number, result: string[]): number {
   let i = startIndex;
@@ -295,7 +449,7 @@ function parseBlock(lines: string[], startIndex: number, indentLevel: number, re
   let foundOpenBrace = false;
 
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const line = lines[i]?.trim() || '';
     
     if (!line) {
       i++;
@@ -366,23 +520,38 @@ function convertLine(line: string): string {
   }
 
   // Compound assignment (x += 5)
-  if (line.match(/^\w+\s*[+\-*/%]=\s*.+/)) {
+  if (line.match(/^[\w.]+\s*[+\-*/%]=\s*.+/)) {
     return convertCompoundAssignment(line);
   }
 
   // Increment/Decrement (x++, x--)
-  if (line.match(/^\w+\+\+$/) || line.match(/^\w+--$/)) {
+  if (line.match(/^[\w.]+\+\+$/) || line.match(/^[\w.]+--$/)) {
     return convertIncrementDecrement(line);
   }
 
   // Simple assignment (x = value)
-  if (line.match(/^\w+\s*=\s*.+/)) {
+  if (line.match(/^[\w.]+\s*=\s*.+/)) {
     return convertAssignment(line);
+  }
+
+  // Return statements
+  if (line.startsWith('return ')) {
+    return convertReturnStatement(line);
   }
 
   // System.out.println/print
   if (line.includes('System.out.println') || line.includes('System.out.print')) {
     return convertOutput(line);
+  }
+
+  // Method calls
+  if (line.match(/^\w+\s*\([^)]*\)$/)) {
+    return convertMethodCall(line);
+  }
+
+  // Method calls in assignment
+  if (line.match(/^\w+\s*=\s*\w+\s*\([^)]*\)$/)) {
+    return convertMethodCallAssignment(line);
   }
 
   return line;
@@ -393,12 +562,10 @@ function convertLine(line: string): string {
  */
 function convertVariableDeclaration(line: string): string {
   const match = line.match(/^(int|String|boolean|double|float)\s+(\w+)\s*=\s*(.+)/);
-  if (match) {
+  if (match && match[2] && match[3]) {
     const [, , varName, value] = match;
-    if (varName && value) {
-      const convertedValue = convertExpression(value);
-      return `${varName} ← ${convertedValue}`;
-    }
+    const convertedValue = convertExpression(value);
+    return `${varName} ← ${convertedValue}`;
   }
   return line;
 }
@@ -407,13 +574,11 @@ function convertVariableDeclaration(line: string): string {
  * Convert simple assignment: x = value -> x ← value
  */
 function convertAssignment(line: string): string {
-  const match = line.match(/^(\w+)\s*=\s*(.+)/);
-  if (match) {
+  const match = line.match(/^([\w.]+)\s*=\s*(.+)/);
+  if (match && match[1] && match[2]) {
     const [, varName, value] = match;
-    if (varName && value) {
-      const convertedValue = convertExpression(value);
-      return `${varName} ← ${convertedValue}`;
-    }
+    const convertedValue = convertExpression(value);
+    return `${varName} ← ${convertedValue}`;
   }
   return line;
 }
@@ -422,13 +587,11 @@ function convertAssignment(line: string): string {
  * Convert compound assignment: x += 5 -> x ← x + 5
  */
 function convertCompoundAssignment(line: string): string {
-  const match = line.match(/^(\w+)\s*([+\-*/%])=\s*(.+)/);
-  if (match) {
+  const match = line.match(/^([\w.]+)\s*([+\-*/%])=\s*(.+)/);
+  if (match && match[1] && match[2] && match[3]) {
     const [, varName, operator, value] = match;
-    if (varName && operator && value) {
-      const convertedValue = convertExpression(value);
-      return `${varName} ← ${varName} ${operator} ${convertedValue}`;
-    }
+    const convertedValue = convertExpression(value);
+    return `${varName} ← ${varName} ${operator} ${convertedValue}`;
   }
   return line;
 }
@@ -437,20 +600,16 @@ function convertCompoundAssignment(line: string): string {
  * Convert increment/decrement: x++ -> x ← x + 1
  */
 function convertIncrementDecrement(line: string): string {
-  const incrementMatch = line.match(/^(\w+)\+\+$/);
-  if (incrementMatch) {
+  const incrementMatch = line.match(/^([\w.]+)\+\+$/);
+  if (incrementMatch && incrementMatch[1]) {
     const varName = incrementMatch[1];
-    if (varName) {
-      return `${varName} ← ${varName} + 1`;
-    }
+    return `${varName} ← ${varName} + 1`;
   }
 
-  const decrementMatch = line.match(/^(\w+)--$/);
-  if (decrementMatch) {
+  const decrementMatch = line.match(/^([\w.]+)--$/);
+  if (decrementMatch && decrementMatch[1]) {
     const varName = decrementMatch[1];
-    if (varName) {
-      return `${varName} ← ${varName} - 1`;
-    }
+    return `${varName} ← ${varName} - 1`;
   }
 
   return line;
@@ -461,12 +620,10 @@ function convertIncrementDecrement(line: string): string {
  */
 function convertOutput(line: string): string {
   const match = line.match(/System\.out\.(println|print)\((.+)\)/);
-  if (match) {
+  if (match && match[2]) {
     const [, , content] = match;
-    if (content) {
-      const convertedContent = convertExpression(content);
-      return `OUTPUT ${convertedContent}`;
-    }
+    const convertedContent = convertExpression(content);
+    return `OUTPUT ${convertedContent}`;
   }
   return line;
 }
@@ -476,11 +633,9 @@ function convertOutput(line: string): string {
  */
 function convertInput(line: string): string {
   const match = line.match(/^(int|String|boolean|double|float)\s+(\w+)\s*=\s*scanner\.(next\w+)\(\)/);
-  if (match) {
+  if (match && match[2]) {
     const [, , varName] = match;
-    if (varName) {
-      return `INPUT ${varName}`;
-    }
+    return `INPUT ${varName.toUpperCase()}`;
   }
   return line;
 }
@@ -489,25 +644,49 @@ function convertInput(line: string): string {
  * Convert expressions (variables, operators, etc.)
  */
 function convertExpression(expr: string): string {
-  let converted = expr.trim();
+  // Convert boolean operators
+  expr = expr.replace(/&&/g, ' AND ');
+  expr = expr.replace(/\|\|/g, ' OR ');
+  expr = expr.replace(/!/g, 'NOT ');
+  
+  // Convert comparison operators
+  expr = expr.replace(/==/g, ' = ');
+  expr = expr.replace(/!=/g, ' ≠ ');
+  expr = expr.replace(/<=/g, ' ≤ ');
+  expr = expr.replace(/>=/g, ' ≥ ');
+  
+  return expr;
+}
 
-  // Convert comparison operators first (before logical operators)
-  converted = converted.replace(/!=/g, '≠');
-  converted = converted.replace(/==/g, '=');
-  converted = converted.replace(/>=/g, '>=');
+/**
+ * Convert return statement: return x -> RETURN x
+ */
+function convertReturnStatement(line: string): string {
+  const match = line.match(/^return\s+(.+)$/);
+  if (match && match[1]) {
+    const expr = convertExpression(match[1]);
+    return `RETURN ${expr}`;
+  }
+  return line;
+}
 
-  // Convert logical operators
-  converted = converted.replace(/&&/g, ' AND ');
-  converted = converted.replace(/\|\|/g, ' OR ');
-  converted = converted.replace(/!/g, 'NOT ');
+/**
+ * Convert method call: methodName(args) -> methodName(args)
+ */
+function convertMethodCall(line: string): string {
+  // For void method calls, keep as is
+  return line;
+}
 
-  // Keep variable names as lowercase (IB pseudocode convention)
-  // No need to convert variable names to uppercase
-
-  // Clean up extra spaces
-  converted = converted.replace(/\s+/g, ' ').trim();
-
-  return converted;
+/**
+ * Convert method call assignment: x = methodName(args) -> x ← methodName(args)
+ */
+function convertMethodCallAssignment(line: string): string {
+  const match = line.match(/^(\w+)\s*=\s*(.+)$/);
+  if (match && match[1] && match[2]) {
+    return `${match[1]} ← ${match[2]}`;
+  }
+  return line;
 }
 
 export { convertLine, convertExpression };
