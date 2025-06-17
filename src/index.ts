@@ -1,114 +1,158 @@
 /**
  * Java to IB Pseudocode Converter
- * Main entry point for the conversion library
+ * Main entry point for the conversion process
  */
 
-export interface ConversionOptions {
-  preserveComments?: boolean;
-}
+import { Parser } from './parser/index';
+import { Emitter } from './emitter/index';
+import {
+  ConversionOptions,
+  mergeConfig,
+  ConfigValidator,
+  ParseError,
+  EmitError,
+  ConfigError
+} from './types';
 
 /**
- * Convert Java code to IB Pseudocode
+ * Convert Java code to IB Pseudocode format
  * @param javaCode - The Java source code to convert
- * @param options - Conversion options
- * @returns The converted IB Pseudocode
+ * @param options - Optional conversion settings
+ * @returns The converted IB pseudocode
  */
-export function convertJavaToIB(javaCode: string, options: ConversionOptions = {}): string {
+export function convertJavaToIB(javaCode: string, options?: ConversionOptions): string {
+  try {
+    // Validate and merge configuration
+    const config = mergeConfig(options);
+    const configErrors = ConfigValidator.validate(config);
+    
+    if (configErrors.length > 0) {
+      throw new ConfigError(
+        `Configuration errors: ${configErrors.join(', ')}`
+      );
+    }
 
-  // Remove leading/trailing whitespace and normalize line endings
-  const normalizedCode = javaCode.trim().replace(/\r\n/g, '\n');
-  
-  if (!normalizedCode) {
-    return '';
+    // Phase 1: Parse Java code into intermediate representation
+    const parser = new Parser(config.parserOptions);
+    const parseResult = parser.parse(javaCode);
+    
+    if (parseResult.diagnostics.hasErrors()) {
+      throw new ParseError(
+        `Parse errors: ${parseResult.diagnostics.format()}`
+      );
+    }
+    
+    if (!parseResult.ir) {
+      throw new ParseError(
+        'Failed to parse Java code - no IR generated'
+      );
+    }
+
+    // Phase 2: Emit IR to IB pseudocode
+    const emitter = new Emitter(config.emitterOptions);
+    const emitResult = emitter.emit(parseResult.ir);
+    
+    if (emitResult.diagnostics.hasErrors()) {
+      throw new EmitError(
+        `Emit errors: ${emitResult.diagnostics.format()}`
+      );
+    }
+    
+    return emitResult.code;
+  } catch (error) {
+    if (error instanceof ParseError || error instanceof EmitError || error instanceof ConfigError) {
+      throw error;
+    }
+    throw new ParseError(
+      `Unexpected conversion error: ${error}`
+    );
   }
-
-  // Parse and convert the code structure
-  return parseAndConvert(normalizedCode, options);
 }
 
 /**
  * Parse and convert Java code with proper structure handling
+ * (This function is currently unused but kept for future reference)
  */
-function parseAndConvert(code: string, options: ConversionOptions): string {
-  const lines = code.split('\n');
-  const result: string[] = [];
-  let i = 0;
-  let indentLevel = 0;
-  let inMultiLineComment = false;
+// function parseAndConvert(code: string, options: ConversionOptions): string {
+//   const lines = code.split('\n');
+//   const result: string[] = [];
+//   let i = 0;
+//   let indentLevel = 0;
+//   let inMultiLineComment = false;
 
-  while (i < lines.length) {
-    const line = lines[i]?.trim() || '';
-    
-    // Skip empty lines
-    if (!line) {
-      i++;
-      continue;
-    }
+  // while (i < lines.length) {
+  //   const line = lines[i]?.trim() || '';
+  //   
+  //   // Skip empty lines
+  //   if (!line) {
+  //     i++;
+  //     continue;
+  //   }
 
-    // Preserve comments
-    const originalLine = lines[i] || '';
-    const trimmedLine = originalLine.trim();
-    
-    // Handle multi-line comments
-    if (trimmedLine.includes('/*')) {
-      inMultiLineComment = true;
-    }
-    
-    // Check if this line should be preserved as a comment
-    const isComment = trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || inMultiLineComment || trimmedLine.includes('*/');
-    
-    if (options.preserveComments && isComment) {
-      // Preserve the original line including whitespace for all comments
-      result.push(originalLine); // Keep original spacing and indentation
-      i++;
-      
-      // Update multi-line comment state after processing the line
-      if (trimmedLine.includes('*/')) {
-        inMultiLineComment = false;
-      }
-      continue;
-    }
-    
-    // Update multi-line comment state for non-comment lines
-    if (trimmedLine.includes('*/')) {
-      inMultiLineComment = false;
-    }
+  //   // Preserve comments
+  //   const originalLine = lines[i] || '';
+  //   const trimmedLine = originalLine.trim();
+  //   
+  //   // Handle multi-line comments
+  //   if (trimmedLine.includes('/*')) {
+  //     inMultiLineComment = true;
+  //   }
+  //   
+  //   // Check if this line should be preserved as a comment
+  //   const isComment = trimmedLine.startsWith('//') || trimmedLine.startsWith('/*') || inMultiLineComment || trimmedLine.includes('*/');
+  //   
+  //   if (options.preserveComments && isComment) {
+  //     // Preserve the original line including whitespace for all comments
+  //     result.push(originalLine); // Keep original spacing and indentation
+  //     i++;
+  //     
+  //     // Update multi-line comment state after processing the line
+  //     if (trimmedLine.includes('*/')) {
+  //       inMultiLineComment = false;
+  //     }
+  //     continue;
+  //   }
+  //   
+  //   // Update multi-line comment state for non-comment lines
+  //   if (trimmedLine.includes('*/')) {
+  //     inMultiLineComment = false;
+  //   }
 
-    // Parse control structures
-    const parseResult = parseControlStructure(lines, i, indentLevel);
-    if (parseResult) {
-      result.push(...parseResult.lines);
-      i = parseResult.nextIndex;
-      
-      // Check if the next non-empty line is another method definition
-      let nextIndex = i;
-      while (nextIndex < lines.length && !lines[nextIndex]?.trim()) {
-        nextIndex++;
-      }
-      
-      if (nextIndex < lines.length) {
-        const nextLine = lines[nextIndex]?.trim() || '';
-        // If next line is another method or constructor, add empty line
-        if (nextLine.match(/^(public|private|protected)\s+(static\s+)?(void|int|String|boolean|double|float|\w+)\s+\w+\s*\(/) ||
-            nextLine.match(/^(public|private|protected)\s+\w+\s*\(/)) {
-          result.push('');
-        }
-      }
-      
-      continue;
-    }
+  //   // Parse control structures
+  //   const parseResult = parseControlStructure(lines, i, indentLevel);
+  //   if (parseResult) {
+  //     result.push(...parseResult.lines);
+  //     i = parseResult.nextIndex;
+  //     
+  //     // Check if the next non-empty line is another method definition
+  //     let nextIndex = i;
+  //     while (nextIndex < lines.length && !lines[nextIndex]?.trim()) {
+  //       nextIndex++;
+  //     }
+  //     
+  //     if (nextIndex < lines.length) {
+  //       const nextLine = lines[nextIndex]?.trim() || '';
+  //       // If next line is another method or constructor, add empty line
+  //       if (nextLine.match(/^(public|private|protected)\s+(static\s+)?(void|int|String|boolean|double|float|\w+)\s+\w+\s*\(/) ||
+  //           nextLine.match(/^(public|private|protected)\s+\w+\s*\(/)) {
+  //         result.push('');
+  //       }
+  //     }
+  //     
+  //     continue;
+  //   }
 
-    // Convert single line
-    const converted = convertLine(line);
-    if (converted && converted.trim()) {
-      const indent = ' '.repeat(indentLevel * 4);
-      result.push(indent + converted.trim());
-    }
-    i++;
-  }
+  //   // Convert single line
+  //   const converted = convertLine(line);
+  //   if (converted && converted.trim()) {
+  //     const indent = ' '.repeat(indentLevel * 4);
+  //     result.push(indent + converted.trim());
+  //   }
+  //   i++;
+  // }
 
-  return result.join('\n');
-}
+  // return result.join('\n');
+// }
 
 /**
  * Parse control structures (IF, WHILE, FOR, etc.)
@@ -762,4 +806,41 @@ function convertMethodCallAssignment(line: string): string {
   return line;
 }
 
+/**
+ * Parse Java code and return intermediate representation with diagnostics
+ * @param javaCode - The Java source code
+ * @param options - Parsing options
+ * @returns Parse result with IR and diagnostics
+ */
+export function parseJavaCode(javaCode: string, options?: ConversionOptions) {
+  const config = mergeConfig(options);
+  const parser = new Parser(config.parserOptions);
+  return parser.parse(javaCode);
+}
+
+/**
+ * Emit intermediate representation to IB pseudocode
+ * @param ir - The intermediate representation
+ * @param options - Emission options
+ * @returns Emission result with code and diagnostics
+ */
+export function emitPseudocode(ir: any, options?: ConversionOptions) {
+  const config = mergeConfig(options);
+  const emitter = new Emitter(config.emitterOptions);
+  return emitter.emit(ir);
+}
+
+/**
+ * Validate conversion options
+ * @param options - Options to validate
+ * @returns Array of validation errors (empty if valid)
+ */
+export function validateOptions(options: ConversionOptions): string[] {
+  return ConfigValidator.validate(options);
+}
+
+// Re-export types for external use
+export * from './types';
+export { Parser } from './parser';
+export { Emitter } from './emitter';
 export { convertLine, convertExpression };
