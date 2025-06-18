@@ -53,6 +53,17 @@ enum TokenType {
   AND = '&&',
   OR = '||',
   NOT = '!',
+  
+  // Compound assignment operators
+  PLUS_ASSIGN = '+=',
+  MINUS_ASSIGN = '-=',
+  MULTIPLY_ASSIGN = '*=',
+  DIVIDE_ASSIGN = '/=',
+  MODULO_ASSIGN = '%=',
+  
+  // Increment/Decrement operators
+  INCREMENT = '++',
+  DECREMENT = '--',
 
   // Punctuation
   SEMICOLON = ';',
@@ -142,17 +153,46 @@ class Lexer {
       case ';': return this.makeToken(TokenType.SEMICOLON, char, start);
       case ',': return this.makeToken(TokenType.COMMA, char, start);
       case '.': return this.makeToken(TokenType.DOT, char, start);
-      case '+': return this.makeToken(TokenType.PLUS, char, start);
-      case '-': return this.makeToken(TokenType.MINUS, char, start);
-      case '*': return this.makeToken(TokenType.MULTIPLY, char, start);
+      case '+':
+        if (this.peek() === '=') {
+          this.advance();
+          return this.makeToken(TokenType.PLUS_ASSIGN, '+=', start);
+        } else if (this.peek() === '+') {
+          this.advance();
+          return this.makeToken(TokenType.INCREMENT, '++', start);
+        }
+        return this.makeToken(TokenType.PLUS, char, start);
+      case '-':
+        if (this.peek() === '=') {
+          this.advance();
+          return this.makeToken(TokenType.MINUS_ASSIGN, '-=', start);
+        } else if (this.peek() === '-') {
+          this.advance();
+          return this.makeToken(TokenType.DECREMENT, '--', start);
+        }
+        return this.makeToken(TokenType.MINUS, char, start);
+      case '*':
+        if (this.peek() === '=') {
+          this.advance();
+          return this.makeToken(TokenType.MULTIPLY_ASSIGN, '*=', start);
+        }
+        return this.makeToken(TokenType.MULTIPLY, char, start);
       case '/': 
         if (this.peek() === '/') {
           return this.lineComment(start);
         } else if (this.peek() === '*') {
           return this.blockComment(start);
+        } else if (this.peek() === '=') {
+          this.advance();
+          return this.makeToken(TokenType.DIVIDE_ASSIGN, '/=', start);
         }
         return this.makeToken(TokenType.DIVIDE, char, start);
-      case '%': return this.makeToken(TokenType.MODULO, char, start);
+      case '%':
+        if (this.peek() === '=') {
+          this.advance();
+          return this.makeToken(TokenType.MODULO_ASSIGN, '%=', start);
+        }
+        return this.makeToken(TokenType.MODULO, char, start);
       case '=':
         if (this.peek() === '=') {
           this.advance();
@@ -219,7 +259,7 @@ class Lexer {
    * Parse a string literal
    */
   private string(start: SourceLocation): Token {
-    let value = '';
+    let value = '"'; // Include opening quote
     
     while (!this.isAtEnd() && this.peek() !== '"') {
       if (this.peek() === '\n') {
@@ -248,7 +288,7 @@ class Lexer {
     }
     
     if (!this.isAtEnd()) {
-      this.advance(); // Closing quote
+      value += this.advance(); // Include closing quote
     }
     
     return this.makeToken(TokenType.STRING, value, start);
@@ -589,14 +629,22 @@ export class Parser {
       return this.parseVariableDeclaration();
     }
     
-    // Assignment statement: x = 5;
+    // Assignment statement: x = 5; or compound assignment: x += 5;
      if (this.check(TokenType.IDENTIFIER)) {
        const checkpoint = this.current;
        this.advance(); // Skip identifier to check for assignment
        
-       if (this.check(TokenType.ASSIGN)) {
+       if (this.check(TokenType.ASSIGN) || this.check(TokenType.PLUS_ASSIGN) || 
+           this.check(TokenType.MINUS_ASSIGN) || this.check(TokenType.MULTIPLY_ASSIGN) ||
+           this.check(TokenType.DIVIDE_ASSIGN) || this.check(TokenType.MODULO_ASSIGN)) {
          this.current = checkpoint; // Reset
          return this.parseAssignment();
+       }
+       
+       // Check for increment/decrement: x++; or x--;
+       if (this.check(TokenType.INCREMENT) || this.check(TokenType.DECREMENT)) {
+         this.current = checkpoint; // Reset
+         return this.parseIncrementDecrement();
        }
        
        this.current = checkpoint; // Reset
@@ -638,10 +686,27 @@ export class Parser {
   }
   
   /**
-   * Parse assignment: x = 5;
+   * Parse assignment: x = 5; or compound assignment: x += 5;
    */
   private parseAssignment(): IRNode {
     const name = this.advance().value; // variable name
+    
+    // Check for compound assignment operators
+    if (this.match(TokenType.PLUS_ASSIGN, TokenType.MINUS_ASSIGN, TokenType.MULTIPLY_ASSIGN, 
+                   TokenType.DIVIDE_ASSIGN, TokenType.MODULO_ASSIGN)) {
+      const operator = this.previous().value;
+      const rightValue = this.parseExpression();
+      this.consume(TokenType.SEMICOLON, 'Expected ";" after assignment');
+      
+      // Convert compound assignment to regular assignment: x += 5 -> x = x + 5
+      const baseOperator = operator.slice(0, -1); // Remove '=' from operator
+      const leftSide = IRBuilder.identifier(name);
+      const expandedValue = IRBuilder.binaryExpression(baseOperator, leftSide, rightValue);
+      
+      return IRBuilder.assignment(name, expandedValue);
+    }
+    
+    // Regular assignment
     this.consume(TokenType.ASSIGN, 'Expected "="');
     const value = this.parseExpression();
     this.consume(TokenType.SEMICOLON, 'Expected ";" after assignment');
@@ -650,9 +715,146 @@ export class Parser {
   }
   
   /**
-   * Parse expression (simplified)
+   * Parse increment/decrement: x++; or x--;
+   */
+  private parseIncrementDecrement(): IRNode {
+    const name = this.advance().value; // variable name
+    
+    if (this.match(TokenType.INCREMENT)) {
+      this.consume(TokenType.SEMICOLON, 'Expected ";" after increment');
+      // Convert x++ to x = x + 1
+       const leftSide = IRBuilder.identifier(name);
+       const one = IRBuilder.literal('1');
+       const expandedValue = IRBuilder.binaryExpression('+', leftSide, one);
+      return IRBuilder.assignment(name, expandedValue);
+    }
+    
+    if (this.match(TokenType.DECREMENT)) {
+      this.consume(TokenType.SEMICOLON, 'Expected ";" after decrement');
+      // Convert x-- to x = x - 1
+       const leftSide = IRBuilder.identifier(name);
+       const one = IRBuilder.literal('1');
+       const expandedValue = IRBuilder.binaryExpression('-', leftSide, one);
+      return IRBuilder.assignment(name, expandedValue);
+    }
+    
+    throw new ParseError('Expected increment or decrement operator', this.peek().location);
+  }
+  
+  /**
+   * Parse expression with operator precedence
    */
   private parseExpression(): IRNode {
+    return this.parseLogicalOr();
+  }
+  
+  /**
+   * Parse logical OR (lowest precedence)
+   */
+  private parseLogicalOr(): IRNode {
+    let expr = this.parseLogicalAnd();
+    
+    while (this.match(TokenType.OR)) {
+      const operator = this.previous().value;
+      const right = this.parseLogicalAnd();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+    
+    return expr;
+  }
+  
+  /**
+   * Parse logical AND
+   */
+  private parseLogicalAnd(): IRNode {
+    let expr = this.parseEquality();
+    
+    while (this.match(TokenType.AND)) {
+      const operator = this.previous().value;
+      const right = this.parseEquality();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+    
+    return expr;
+  }
+  
+  /**
+   * Parse equality and inequality
+   */
+  private parseEquality(): IRNode {
+    let expr = this.parseComparison();
+    
+    while (this.match(TokenType.EQUALS, TokenType.NOT_EQUALS)) {
+      const operator = this.previous().value;
+      const right = this.parseComparison();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+    
+    return expr;
+  }
+  
+  /**
+   * Parse comparison operators
+   */
+  private parseComparison(): IRNode {
+    let expr = this.parseAddition();
+    
+    while (this.match(TokenType.LESS_THAN, TokenType.GREATER_THAN, TokenType.LESS_EQUAL, TokenType.GREATER_EQUAL)) {
+      const operator = this.previous().value;
+      const right = this.parseAddition();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+    
+    return expr;
+  }
+
+  /**
+   * Parse addition and subtraction (lowest precedence)
+   */
+  private parseAddition(): IRNode {
+    let expr = this.parseMultiplication();
+
+    while (this.match(TokenType.PLUS, TokenType.MINUS)) {
+      const operator = this.previous().value;
+      const right = this.parseMultiplication();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+
+    return expr;
+  }
+
+  /**
+   * Parse multiplication, division, and modulo (higher precedence)
+   */
+  private parseMultiplication(): IRNode {
+    let expr = this.parseUnary();
+
+    while (this.match(TokenType.MULTIPLY, TokenType.DIVIDE, TokenType.MODULO)) {
+      const operator = this.previous().value;
+      const right = this.parseUnary();
+      expr = IRBuilder.binaryExpression(operator, expr, right);
+    }
+
+    return expr;
+  }
+  
+  /**
+   * Parse unary operators (NOT, etc.)
+   */
+  private parseUnary(): IRNode {
+    if (this.match(TokenType.NOT)) {
+      const operator = this.previous().value;
+      const right = this.parseUnary();
+      return IRBuilder.unaryExpression(operator, right);
+    }
+    
+    return this.parsePrimary();
+  }
+
+  /**
+   * Parse primary expressions (literals, identifiers, parentheses)
+   */
+  private parsePrimary(): IRNode {
     if (this.check(TokenType.NUMBER)) {
       return IRBuilder.literal(this.advance().value);
     }
@@ -667,6 +869,12 @@ export class Parser {
     
     if (this.check(TokenType.IDENTIFIER)) {
       return IRBuilder.identifier(this.advance().value);
+    }
+
+    if (this.match(TokenType.LEFT_PAREN)) {
+      const expr = this.parseExpression();
+      this.consume(TokenType.RIGHT_PAREN, 'Expected ")" after expression');
+      return expr;
     }
     
     throw new ParseError('Expected expression', this.peek().location);

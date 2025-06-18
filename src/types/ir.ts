@@ -313,6 +313,24 @@ export class IRBuilder {
       }
     };
   }
+  
+  /**
+   * Create a unary expression node
+   */
+  static unaryExpression(operator: string, operand: IRNode): IRNode {
+    return {
+      kind: IRKind.UNARY_EXPRESSION,
+      text: operator,
+      children: [operand],
+      meta: {
+        expressionInfo: {
+          type: 'unary',
+          operator,
+          operand
+        }
+      }
+    };
+  }
 
   /**
    * Create an output statement node

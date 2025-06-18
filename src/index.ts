@@ -3,8 +3,8 @@
  * Main entry point for the conversion process
  */
 
-import { Parser } from './parser/index';
-import { Emitter } from './emitter/index';
+import { Parser } from './parser/index.js';
+import { Emitter } from './emitter/index.js';
 import {
   ConversionOptions,
   mergeConfig,

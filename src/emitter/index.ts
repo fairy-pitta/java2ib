@@ -230,10 +230,10 @@ export class Emitter {
       throw new EmitError('Assignment node missing required data', node.location);
     }
 
-    const variable = node.text;
+    const variable = node.text.toUpperCase();
     if (node.children && node.children[0]) {
       const value = this.emitExpression(node.children[0]);
-      this.emitLine(`${variable} = ${value}`);
+      this.emitLine(`${variable} ← ${value}`);
     }
   }
 
@@ -390,7 +390,7 @@ export class Emitter {
         return node.text || '';
       
       case IRKind.IDENTIFIER:
-        return node.text || '';
+        return (node.text || '').toUpperCase();
       
       case IRKind.BINARY_EXPRESSION:
         const expressionInfo = node.meta?.expressionInfo;
@@ -403,6 +403,17 @@ export class Emitter {
         const operator = this.convertOperator(expressionInfo.operator);
         
         return `${left} ${operator} ${right}`;
+      
+      case IRKind.UNARY_EXPRESSION:
+        const unaryInfo = node.meta?.expressionInfo;
+        if (!unaryInfo?.operand || !unaryInfo.operator) {
+          throw new EmitError('Unary expression missing required data', node.location);
+        }
+        
+        const operand = this.emitExpression(unaryInfo.operand);
+        const unaryOperator = this.convertOperator(unaryInfo.operator);
+        
+        return `${unaryOperator} ${operand}`;
       
       case IRKind.METHOD_CALL:
         // TODO: Implement method call emission
