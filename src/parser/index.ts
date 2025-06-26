@@ -6,6 +6,7 @@
 import {
   IRNode,
   IRBuilder,
+  IRKind,
   ParserOptions,
   ParseError,
   DiagnosticCollection,
@@ -69,6 +70,7 @@ enum TokenType {
   SEMICOLON = ';',
   COMMA = ',',
   DOT = '.',
+  COLON = ':',
   LEFT_PAREN = '(',
   RIGHT_PAREN = ')',
   LEFT_BRACE = '{',
@@ -595,6 +597,8 @@ export class Parser {
    * Parse block of statements
    */
   private parseBlock(): IRNode[] {
+    this.consume(TokenType.LEFT_BRACE, 'Expected "{"');
+    
     const statements: IRNode[] = [];
     
     while (!this.check(TokenType.RIGHT_BRACE) && !this.isAtEnd()) {
@@ -610,6 +614,8 @@ export class Parser {
       }
     }
     
+    this.consume(TokenType.RIGHT_BRACE, 'Expected "}"');
+    
     return statements;
   }
 
@@ -622,6 +628,19 @@ export class Parser {
     
     if (this.isAtEnd() || this.check(TokenType.RIGHT_BRACE)) {
       return null;
+    }
+    
+    // Control structures
+    if (this.check(TokenType.IF)) {
+      return this.parseIfStatement();
+    }
+    
+    if (this.check(TokenType.WHILE)) {
+      return this.parseWhileStatement();
+    }
+    
+    if (this.check(TokenType.FOR)) {
+      return this.parseForStatement();
     }
     
     // Variable declaration with assignment: int x = 5;
@@ -661,7 +680,153 @@ export class Parser {
     
     return null;
   }
-  
+
+  /**
+   * Parse if statement: if (condition) { ... } else { ... }
+   */
+  private parseIfStatement(): IRNode {
+    this.consume(TokenType.IF, 'Expected "if"');
+    this.consume(TokenType.LEFT_PAREN, 'Expected "(" after "if"');
+    const condition = this.parseExpression();
+    this.consume(TokenType.RIGHT_PAREN, 'Expected ")" after if condition');
+    
+    const thenBlock = this.parseBlock();
+    let elseBlock: IRNode[] | undefined;
+    
+    if (this.match(TokenType.ELSE)) {
+      if (this.check(TokenType.IF)) {
+        // else if - treat as nested if
+        elseBlock = [this.parseIfStatement()];
+      } else {
+        // else block
+        elseBlock = this.parseBlock();
+      }
+    }
+    
+    return IRBuilder.ifStatement(condition, thenBlock, elseBlock);
+  }
+
+  /**
+   * Parse while statement: while (condition) { ... }
+   */
+  private parseWhileStatement(): IRNode {
+    this.consume(TokenType.WHILE, 'Expected "while"');
+    this.consume(TokenType.LEFT_PAREN, 'Expected "(" after "while"');
+    const condition = this.parseExpression();
+    this.consume(TokenType.RIGHT_PAREN, 'Expected ")" after while condition');
+    
+    const body = this.parseBlock();
+    
+    return IRBuilder.whileLoop(condition, body);
+  }
+
+  /**
+   * Parse for statement: for (init; condition; increment) { ... }
+   */
+  private parseForStatement(): IRNode {
+    this.consume(TokenType.FOR, 'Expected "for"');
+    this.consume(TokenType.LEFT_PAREN, 'Expected "(" after "for"');
+    
+    // Check for enhanced for loop: for (Type var : collection)
+    const checkpoint = this.current;
+    
+    // Try to parse as enhanced for loop first
+    if (this.check(TokenType.INT) || this.check(TokenType.STRING_TYPE)) {
+      this.advance(); // Skip type
+      if (this.check(TokenType.IDENTIFIER)) {
+        const variable = this.advance().value;
+        if (this.match(TokenType.COLON)) {
+          // Enhanced for loop
+          const collection = this.parseExpression();
+          this.consume(TokenType.RIGHT_PAREN, 'Expected ")" after for-each');
+          const body = this.parseBlock();
+          
+          return {
+            kind: IRKind.FOR_EACH,
+            text: variable,
+            children: [collection, ...body],
+            meta: {
+              controlInfo: {
+                loopVariable: variable,
+                collection
+              }
+            }
+          };
+        }
+      }
+    }
+    
+    // Reset and parse as regular for loop
+    this.current = checkpoint;
+    
+    // Parse initialization: int i = 0 or i = 0
+    let variable = '';
+    let start: IRNode;
+    
+    if (this.check(TokenType.INT) || this.check(TokenType.STRING_TYPE)) {
+      this.advance(); // Skip type
+    }
+    
+    if (this.check(TokenType.IDENTIFIER)) {
+      variable = this.advance().value;
+      this.consume(TokenType.ASSIGN, 'Expected "=" in for loop initialization');
+      start = this.parseExpression();
+    } else {
+      throw new ParseError('Expected variable in for loop initialization', this.peek().location);
+    }
+    
+    this.consume(TokenType.SEMICOLON, 'Expected ";" after for loop initialization');
+    
+    // Parse condition: i < 10
+    const condition = this.parseExpression();
+    this.consume(TokenType.SEMICOLON, 'Expected ";" after for loop condition');
+    
+    // Parse increment: i++ or i += 1
+    let step: IRNode | undefined;
+    if (this.check(TokenType.IDENTIFIER)) {
+      this.advance(); // Skip variable name
+      if (this.match(TokenType.INCREMENT)) {
+        step = IRBuilder.literal('1');
+      } else if (this.match(TokenType.PLUS_ASSIGN)) {
+        step = this.parseExpression();
+      }
+    }
+    
+    this.consume(TokenType.RIGHT_PAREN, 'Expected ")" after for loop');
+    
+    const body = this.parseBlock();
+    
+    // Extract end value from condition (assuming i < end or i <= end)
+    let end: IRNode;
+    if (condition.kind === IRKind.BINARY_EXPRESSION && condition.children && condition.children.length >= 2) {
+      const operator = condition.text;
+      const rightOperand = condition.children[1];
+      
+      if (rightOperand) {
+        if (operator === '<') {
+          // i < 10 means end is 9 (10 - 1)
+          if (rightOperand.kind === IRKind.LITERAL && rightOperand.text) {
+            const endValue = parseInt(rightOperand.text) - 1;
+            end = IRBuilder.literal(endValue.toString());
+          } else {
+            end = IRBuilder.binaryExpression('-', rightOperand, IRBuilder.literal('1'));
+          }
+        } else if (operator === '<=') {
+          // i <= 10 means end is 10
+          end = rightOperand;
+        } else {
+          end = rightOperand;
+        }
+      } else {
+        end = IRBuilder.literal('0');
+      }
+    } else {
+      end = IRBuilder.literal('0');
+    }
+    
+    return IRBuilder.forLoop(variable, start, end, body, step ? step : undefined);
+  }
+
   /**
    * Parse variable declaration: int x = 5;
    */

@@ -419,6 +419,18 @@ export class Emitter {
         // TODO: Implement method call emission
         return node.text || 'METHOD_CALL';
       
+      case IRKind.IF:
+        return this.emitIfStatement(node);
+
+      case IRKind.WHILE:
+        return this.emitWhileLoop(node);
+
+      case IRKind.FOR:
+        return this.emitForLoop(node);
+
+      case IRKind.FOR_EACH:
+        return this.emitForEachLoop(node);
+      
       default:
         this.diagnostics.addWarning(
           `Unsupported expression kind: ${node.kind}`,
@@ -486,6 +498,139 @@ export class Emitter {
     if (this.context.indentLevel > 0) {
       this.context.indentLevel--;
     }
+  }
+
+  /**
+   * Emit if statement: IF condition THEN ... ELSE ... END IF
+   */
+  private emitIfStatement(node: IRNode): string {
+    if (!node.children || node.children.length < 2) {
+      throw new Error('If statement must have at least condition and then block');
+    }
+
+    const conditionNode = node.children[0];
+    if (!conditionNode) {
+      throw new Error('If statement condition is missing');
+    }
+    
+    const condition = this.emitExpression(conditionNode);
+    const body = node.children.slice(1);
+
+    let result = `IF ${condition} THEN\n`;
+    
+    // Emit body
+    for (const stmt of body) {
+      if (stmt) {
+        result += this.indentString(this.emitExpression(stmt)) + '\n';
+      }
+    }
+
+    result += 'END IF';
+    return result;
+  }
+
+  /**
+   * Emit while loop: WHILE condition ... END WHILE
+   */
+  private emitWhileLoop(node: IRNode): string {
+    if (!node.children || node.children.length < 2) {
+      throw new Error('While loop must have condition and body');
+    }
+
+    const conditionNode = node.children[0];
+    if (!conditionNode) {
+      throw new Error('While loop condition is missing');
+    }
+    
+    const condition = this.emitExpression(conditionNode);
+    const body = node.children.slice(1);
+
+    let result = `WHILE ${condition}\n`;
+    
+    for (const stmt of body) {
+      if (stmt) {
+        result += this.indentString(this.emitExpression(stmt)) + '\n';
+      }
+    }
+
+    result += 'END WHILE';
+    return result;
+  }
+
+  /**
+   * Emit for loop: FOR variable FROM start TO end ... END FOR
+   */
+  private emitForLoop(node: IRNode): string {
+    if (!node.children || node.children.length < 3) {
+      throw new Error('For loop must have start, end, and body');
+    }
+
+    const startNode = node.children[0];
+    const endNode = node.children[1];
+    
+    if (!startNode || !endNode) {
+      throw new Error('For loop start or end is missing');
+    }
+    
+    const variable = node.text || 'i';
+    const start = this.emitExpression(startNode);
+    const end = this.emitExpression(endNode);
+    const body = node.children.slice(2);
+
+    let result = `FOR ${variable} FROM ${start} TO ${end}`;
+    
+    // Add step if present
+    if (node.meta?.controlInfo?.stepValue) {
+      const step = this.emitExpression(node.meta.controlInfo.stepValue);
+      result += ` STEP ${step}`;
+    }
+    
+    result += '\n';
+    
+    for (const stmt of body) {
+      if (stmt) {
+        result += this.indentString(this.emitExpression(stmt)) + '\n';
+      }
+    }
+
+    result += 'END FOR';
+    return result;
+  }
+
+  /**
+   * Emit for-each loop: FOR EACH variable IN collection ... END FOR
+   */
+  private emitForEachLoop(node: IRNode): string {
+    if (!node.children || node.children.length < 2) {
+      throw new Error('For-each loop must have collection and body');
+    }
+
+    const collectionNode = node.children[0];
+    if (!collectionNode) {
+      throw new Error('For-each loop collection is missing');
+    }
+    
+    const variable = node.text || 'item';
+    const collection = this.emitExpression(collectionNode);
+    const body = node.children.slice(1);
+
+    let result = `FOR EACH ${variable} IN ${collection}\n`;
+    
+    for (const stmt of body) {
+      if (stmt) {
+        result += this.indentString(this.emitExpression(stmt)) + '\n';
+      }
+    }
+
+    result += 'END FOR';
+    return result;
+  }
+
+  /**
+   * Add indentation to a line
+   */
+  private indentString(line: string): string {
+    return '  ' + line;
   }
 }
 
