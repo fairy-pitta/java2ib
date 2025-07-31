@@ -26,7 +26,7 @@
   - Commit changes with message "feat: implement Java lexical analyzer"
   - _Requirements: 9.1, 3.1, 3.2_
 
-- [-] 4. Create Java parser for AST generation
+- [x] 4. Create Java parser for AST generation
   - Implement Parser class that converts tokens to AST nodes
   - Add parsing logic for variable declarations, assignments, and expressions
   - Implement parsing for method declarations and basic statements
@@ -36,7 +36,7 @@
   - Commit changes with message "feat: implement Java parser with AST generation"
   - _Requirements: 9.1, 3.1, 6.1, 6.2_
 
-- [ ] 5. Implement IB Rules Engine
+- [-] 5. Implement IB Rules Engine
   - Create IBRulesEngine class with variable name conversion (Java camelCase to UPPERCASE)
   - Implement operator conversion methods (==, !=, &&, ||, !, % to =, ≠, AND, OR, NOT, mod)
   - Add control structure format conversion methods
