@@ -92,4 +92,5 @@ export enum NodeType {
   ARRAY_ACCESS = 'ArrayAccess',
   LITERAL = 'Literal',
   IDENTIFIER = 'Identifier',
+  RETURN_STATEMENT = 'ReturnStatement',
 }

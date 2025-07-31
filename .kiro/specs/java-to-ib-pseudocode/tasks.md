@@ -54,7 +54,7 @@
   - Commit changes with message "feat: implement AST transformation system"
   - _Requirements: 3.1, 3.2, 3.3, 5.1, 5.2_
 
-- [-] 7. Implement control structure transformations
+- [x] 7. Implement control structure transformations
   - Add if-else statement transformation to "if...then...else...end if" format
   - Implement if-elif-else chain transformation with proper nesting
   - Add while loop transformation to "loop while...end loop" format
@@ -64,7 +64,7 @@
   - Commit changes with message "feat: implement control structure transformations"
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [ ] 8. Add method and function transformation
+- [-] 8. Add method and function transformation
   - Implement void method transformation to PROCEDURE format
   - Add non-void method transformation to FUNCTION with RETURNS value format
   - Create parameter name conversion to UPPERCASE

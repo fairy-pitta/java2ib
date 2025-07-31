@@ -15,6 +15,7 @@ export interface MethodInfo {
   returnType: string;
   parameters: ParameterInfo[];
   isVoid: boolean;
+  isStatic: boolean;
 }
 
 export interface ParameterInfo {

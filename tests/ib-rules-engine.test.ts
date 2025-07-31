@@ -114,6 +114,7 @@ describe('IBRulesEngine', () => {
         returnType: 'void',
         parameters: [],
         isVoid: true,
+        isStatic: false
       };
 
       expect(engine.convertMethodDeclaration(voidMethod)).toBe('PROCEDURE PRINT_MESSAGE');
@@ -131,6 +132,7 @@ describe('IBRulesEngine', () => {
         returnType: 'void',
         parameters,
         isVoid: true,
+        isStatic: false
       };
 
       expect(engine.convertMethodDeclaration(voidMethodWithParams)).toBe('PROCEDURE PRINT_MESSAGE_MULTIPLE(MESSAGE, COUNT)');
@@ -143,6 +145,7 @@ describe('IBRulesEngine', () => {
         returnType: 'int',
         parameters: [],
         isVoid: false,
+        isStatic: false
       };
 
       expect(engine.convertMethodDeclaration(nonVoidMethod)).toBe('FUNCTION CALCULATE_SUM');
@@ -160,6 +163,7 @@ describe('IBRulesEngine', () => {
         returnType: 'int',
         parameters,
         isVoid: false,
+        isStatic: false
       };
 
       expect(engine.convertMethodDeclaration(nonVoidMethodWithParams)).toBe('FUNCTION ADD_NUMBERS(FIRST_NUMBER, SECOND_NUMBER)');

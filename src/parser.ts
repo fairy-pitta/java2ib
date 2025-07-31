@@ -108,6 +108,11 @@ export interface ArrayAccessNode extends ASTNode {
   index: ASTNode;
 }
 
+export interface ReturnStatementNode extends ASTNode {
+  type: NodeType.RETURN_STATEMENT;
+  expression?: ASTNode;
+}
+
 export class Parser {
   private tokens: Token[];
   private current: number = 0;
@@ -333,6 +338,11 @@ export class Parser {
   }
 
   private parseStatement(): ASTNode {
+    // Return statement
+    if (this.match('return')) {
+      return this.parseReturnStatement();
+    }
+
     // If statement
     if (this.match('if')) {
       return this.parseIfStatement();
@@ -445,6 +455,27 @@ export class Parser {
       update,
       body,
       children
+    };
+  }
+
+  private parseReturnStatement(): ReturnStatementNode {
+    const location = this.getCurrentLocation();
+    
+    // 'return' keyword already consumed
+    let expression: ASTNode | undefined;
+    
+    // Check if there's an expression to return
+    if (!this.check(TokenType.PUNCTUATION, ';')) {
+      expression = this.parseExpression();
+    }
+    
+    this.consume(TokenType.PUNCTUATION, "Expected ';' after return statement", ';');
+
+    return {
+      type: NodeType.RETURN_STATEMENT,
+      location,
+      expression,
+      children: expression ? [expression] : []
     };
   }
 

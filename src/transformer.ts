@@ -28,7 +28,8 @@ import {
   ForLoopNode,
   LiteralNode,
   IdentifierNode,
-  ArrayAccessNode
+  ArrayAccessNode,
+  ReturnStatementNode
 } from './parser';
 
 // Pseudocode AST Node Types
@@ -558,6 +559,139 @@ export class ForLoopRule extends BaseTransformationRule {
   }
 }
 
+// Method Declaration Transformation Rule
+export class MethodDeclarationRule extends BaseTransformationRule {
+  nodeType = NodeType.METHOD_DECLARATION;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const methodNode = node as MethodDeclarationNode;
+    const result: PseudocodeNode[] = [];
+
+    // Store method info in context
+    const methodInfo: MethodInfo = {
+      originalName: methodNode.name,
+      pseudocodeName: context.ibRules.convertVariableName(methodNode.name),
+      returnType: methodNode.returnType,
+      parameters: methodNode.parameters.map(param => ({
+        originalName: param.name,
+        pseudocodeName: context.ibRules.convertVariableName(param.name),
+        type: param.paramType
+      })),
+      isVoid: methodNode.isVoid,
+      isStatic: methodNode.isStatic
+    };
+    context.methods.set(methodNode.name, methodInfo);
+
+    // Convert parameters to UPPERCASE
+    const parameterList = methodNode.parameters.map(param => 
+      context.ibRules.convertVariableName(param.name)
+    ).join(', ');
+
+    if (methodNode.isVoid) {
+      // Transform void method to PROCEDURE format
+      const procedureHeader = parameterList 
+        ? `PROCEDURE ${methodInfo.pseudocodeName}(${parameterList})`
+        : `PROCEDURE ${methodInfo.pseudocodeName}()`;
+      
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        procedureHeader,
+        node.location,
+        context.indentLevel
+      ));
+    } else {
+      // Transform non-void method to FUNCTION format
+      const functionHeader = parameterList
+        ? `FUNCTION ${methodInfo.pseudocodeName}(${parameterList})`
+        : `FUNCTION ${methodInfo.pseudocodeName}()`;
+      
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        functionHeader,
+        node.location,
+        context.indentLevel
+      ));
+    }
+
+    // Transform method body with increased indentation
+    const bodyContext = { 
+      ...context, 
+      indentLevel: context.indentLevel + 1,
+      currentScope: { 
+        name: methodNode.name, 
+        type: 'method' as const, 
+        parent: context.currentScope 
+      }
+    };
+
+    // Add parameters to variable context
+    methodNode.parameters.forEach(param => {
+      const variableInfo: VariableInfo = {
+        originalName: param.name,
+        pseudocodeName: context.ibRules.convertVariableName(param.name),
+        type: param.paramType,
+        scope: methodNode.name
+      };
+      bodyContext.variables.set(param.name, variableInfo);
+    });
+
+    // Transform method body
+    for (const statement of methodNode.body) {
+      const statementNodes = context.transformer.transformNode(statement, bodyContext);
+      result.push(...statementNodes);
+    }
+
+    // Add end statement
+    if (methodNode.isVoid) {
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        'END PROCEDURE',
+        node.location,
+        context.indentLevel
+      ));
+    } else {
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        'END FUNCTION',
+        node.location,
+        context.indentLevel
+      ));
+    }
+
+    return result;
+  }
+}
+
+// Return Statement Transformation Rule
+export class ReturnStatementRule extends BaseTransformationRule {
+  nodeType = NodeType.RETURN_STATEMENT;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const returnNode = node as ReturnStatementNode;
+    
+    if (returnNode.expression) {
+      // Transform the return expression
+      const expressionNodes = context.transformer.transformNode(returnNode.expression, context);
+      const expressionContent = expressionNodes.map(n => n.content).join('');
+      
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        `RETURN ${expressionContent}`,
+        node.location,
+        context.indentLevel
+      )];
+    } else {
+      // Void return (just return without value)
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        'RETURN',
+        node.location,
+        context.indentLevel
+      )];
+    }
+  }
+}
+
 // Main AST Transformer Class
 export class ASTTransformer {
   private rules: Map<NodeType, TransformationRule>;
@@ -579,7 +713,9 @@ export class ASTTransformer {
       new LiteralRule(),
       new IfStatementRule(),
       new WhileLoopRule(),
-      new ForLoopRule()
+      new ForLoopRule(),
+      new MethodDeclarationRule(),
+      new ReturnStatementRule()
     ];
 
     for (const rule of rules) {
