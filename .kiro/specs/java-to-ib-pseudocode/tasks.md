@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [-] 1. Set up project structure and development environment
+- [x] 1. Set up project structure and development environment
   - Initialize npm TypeScript project with proper configuration
   - Set up Jest testing framework with TypeScript support
   - Configure ESLint, Prettier, and TypeDoc
@@ -8,7 +8,7 @@
   - Set up git repository with initial commit
   - _Requirements: 2.2, 2.3_
 
-- [ ] 2. Implement core token and AST infrastructure
+- [-] 2. Implement core token and AST infrastructure
   - Create Token interface and TokenType enum definitions
   - Implement SourceLocation and basic error handling types
   - Create ASTNode interface and NodeType enum
