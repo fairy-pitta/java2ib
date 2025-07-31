@@ -8,7 +8,7 @@
   - Set up git repository with initial commit
   - _Requirements: 2.2, 2.3_
 
-- [-] 2. Implement core token and AST infrastructure
+- [x] 2. Implement core token and AST infrastructure
   - Create Token interface and TokenType enum definitions
   - Implement SourceLocation and basic error handling types
   - Create ASTNode interface and NodeType enum
@@ -17,7 +17,7 @@
   - Commit changes with message "feat: implement core token and AST infrastructure"
   - _Requirements: 9.1, 9.2_
 
-- [ ] 3. Build lexical analyzer (lexer)
+- [-] 3. Build lexical analyzer (lexer)
   - Implement Lexer class with tokenization logic for Java keywords, identifiers, operators, and literals
   - Add support for whitespace handling and comment preservation
   - Create comprehensive lexer unit tests covering all token types
