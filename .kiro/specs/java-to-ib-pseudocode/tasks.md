@@ -17,7 +17,7 @@
   - Commit changes with message "feat: implement core token and AST infrastructure"
   - _Requirements: 9.1, 9.2_
 
-- [-] 3. Build lexical analyzer (lexer)
+- [x] 3. Build lexical analyzer (lexer)
   - Implement Lexer class with tokenization logic for Java keywords, identifiers, operators, and literals
   - Add support for whitespace handling and comment preservation
   - Create comprehensive lexer unit tests covering all token types
@@ -26,7 +26,7 @@
   - Commit changes with message "feat: implement Java lexical analyzer"
   - _Requirements: 9.1, 3.1, 3.2_
 
-- [ ] 4. Create Java parser for AST generation
+- [-] 4. Create Java parser for AST generation
   - Implement Parser class that converts tokens to AST nodes
   - Add parsing logic for variable declarations, assignments, and expressions
   - Implement parsing for method declarations and basic statements
