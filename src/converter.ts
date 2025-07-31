@@ -11,7 +11,7 @@ export class JavaToIBConverter {
    * @param options - Optional conversion settings
    * @returns Conversion result with pseudocode and metadata
    */
-  convert(javaCode: string, options?: ConversionOptions): ConversionResult {
+  convert(javaCode: string, _options?: ConversionOptions): ConversionResult {
     // Placeholder implementation - will be implemented in later tasks
     return {
       pseudocode: '// Conversion not yet implemented',

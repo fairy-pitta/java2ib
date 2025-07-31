@@ -1,6 +1,6 @@
 /**
  * Java to IB Pseudocode Converter
- * 
+ *
  * Main entry point for the library
  */
 

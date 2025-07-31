@@ -21,7 +21,7 @@ describe('JavaToIBConverter', () => {
 
   test('should return conversion result structure', () => {
     const result = converter.convert('int x = 5;');
-    
+
     expect(result).toHaveProperty('pseudocode');
     expect(result).toHaveProperty('success');
     expect(result).toHaveProperty('errors');
