@@ -84,7 +84,7 @@
   - Commit changes with message "feat: implement array operations transformation"
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [-] 10. Add input/output statement transformation
+- [x] 10. Add input/output statement transformation
   - Implement System.out.print/println to "output" statement conversion
   - Add Scanner input operations to "INPUT" statement transformation
   - Handle prompt separation for input statements
@@ -93,7 +93,7 @@
   - Commit changes with message "feat: implement I/O statement transformations"
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [ ] 11. Implement pseudocode generation system
+- [-] 11. Implement pseudocode generation system
   - Create PseudocodeNode interface and code generation classes
   - Implement proper indentation and formatting logic
   - Add comment preservation functionality
