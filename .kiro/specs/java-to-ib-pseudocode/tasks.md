@@ -36,7 +36,7 @@
   - Commit changes with message "feat: implement Java parser with AST generation"
   - _Requirements: 9.1, 3.1, 6.1, 6.2_
 
-- [-] 5. Implement IB Rules Engine
+- [x] 5. Implement IB Rules Engine
   - Create IBRulesEngine class with variable name conversion (Java camelCase to UPPERCASE)
   - Implement operator conversion methods (==, !=, &&, ||, !, % to =, ≠, AND, OR, NOT, mod)
   - Add control structure format conversion methods
@@ -45,7 +45,7 @@
   - Commit changes with message "feat: implement IB pseudocode rules engine"
   - _Requirements: 3.1, 3.2, 5.1, 5.2, 5.3, 5.4_
 
-- [ ] 6. Build AST transformation system
+- [-] 6. Build AST transformation system
   - Create TransformationRule interface and base transformation classes
   - Implement variable declaration and assignment transformation rules
   - Add expression and operator transformation logic
