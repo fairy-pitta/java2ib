@@ -129,7 +129,8 @@ export class VariableDeclarationRule extends BaseTransformationRule {
       const initializerContent = initializerNodes.map(n => n.content).join('');
       content = `${pseudocodeName} = ${initializerContent}`;
     } else {
-      // Just declare the variable (though IB pseudocode typically doesn't have explicit declarations)
+      // For array declarations without initialization, just declare with UPPERCASE name
+      // IB pseudocode typically doesn't require explicit type declarations
       content = `${pseudocodeName}`;
     }
 
@@ -187,6 +188,38 @@ export class BinaryExpressionRule extends BaseTransformationRule {
   transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
     const binaryNode = node as BinaryExpressionNode;
     
+    // Handle increment/decrement operators (++, --)
+    if (binaryNode.operator === '++' || binaryNode.operator === '--') {
+      const leftNodes = context.transformer.transformNode(binaryNode.left, context);
+      const leftContent = leftNodes.map(n => n.content).join('');
+      
+      // Check if this is postfix (right operand is empty) or prefix (left operand is empty)
+      const rightNodes = context.transformer.transformNode(binaryNode.right, context);
+      const rightContent = rightNodes.map(n => n.content).join('');
+      
+      if (rightContent === '') {
+        // Postfix: i++ becomes I = I + 1
+        const operation = binaryNode.operator === '++' ? '+' : '-';
+        const content = `${leftContent} = ${leftContent} ${operation} 1`;
+        return [this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          content,
+          node.location,
+          context.indentLevel
+        )];
+      } else {
+        // Prefix: ++i becomes I = I + 1 (same result in pseudocode)
+        const operation = binaryNode.operator === '++' ? '+' : '-';
+        const content = `${rightContent} = ${rightContent} ${operation} 1`;
+        return [this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          content,
+          node.location,
+          context.indentLevel
+        )];
+      }
+    }
+    
     // Handle unary expressions (where left operand is empty)
     if (binaryNode.left && (binaryNode.left as LiteralNode).value === '') {
       // This is a unary expression
@@ -229,6 +262,18 @@ export class IdentifierRule extends BaseTransformationRule {
 
   transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
     const identifierNode = node as IdentifierNode;
+    
+    // Handle array.length special case
+    if (identifierNode.name.endsWith('.length')) {
+      const arrayName = identifierNode.name.replace('.length', '');
+      const content = context.ibRules.convertArrayLength(arrayName);
+      
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.EXPRESSION,
+        content,
+        node.location
+      )];
+    }
     
     // Check if this identifier is a known variable
     const variableInfo = context.variables.get(identifierNode.name);
@@ -393,6 +438,49 @@ export class ForLoopRule extends BaseTransformationRule {
     const forNode = node as ForLoopNode;
     const result: PseudocodeNode[] = [];
 
+    // Check if this is an enhanced for loop over an array (for(Type item : array))
+    if (this.isEnhancedForLoop(forNode)) {
+      const enhancedInfo = this.extractEnhancedForInfo(forNode, context);
+      if (enhancedInfo) {
+        // Convert enhanced for loop to appropriate loop structure
+        // For arrays, we'll use: loop I from 0 to SIZE(ARRAY) - 1
+        const indexVar = 'I';
+        const arraySize = context.ibRules.convertArrayLength(enhancedInfo.arrayName);
+        
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          `loop ${indexVar} from 0 to ${arraySize} - 1`,
+          node.location,
+          context.indentLevel
+        ));
+
+        // Add variable assignment inside the loop body
+        const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+        
+        // Add assignment: ITEM = ARRAY[I]
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          `${enhancedInfo.itemVariable} = ${enhancedInfo.arrayVariable}[${indexVar}]`,
+          node.location,
+          bodyContext.indentLevel
+        ));
+
+        // Transform original body
+        const bodyNodes = this.transformStatementBody(forNode.body, bodyContext);
+        result.push(...bodyNodes);
+
+        // End loop
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          'end loop',
+          node.location,
+          context.indentLevel
+        ));
+
+        return result;
+      }
+    }
+
     // Check if this is a simple counting for loop (for(int i = start; i < end; i++))
     if (this.isSimpleCountingLoop(forNode)) {
       const loopInfo = this.extractSimpleLoopInfo(forNode, context);
@@ -469,6 +557,27 @@ export class ForLoopRule extends BaseTransformationRule {
     }
 
     return result;
+  }
+
+  private isEnhancedForLoop(forNode: ForLoopNode): boolean {
+    // Enhanced for loops in Java have the pattern: for(Type item : collection)
+    // In our AST, this would be represented differently than regular for loops
+    // For now, we'll detect this by checking if there's no condition or update
+    // and the initialization contains a colon-like pattern
+    
+    // This is a simplified detection - in a full implementation, 
+    // the lexer/parser would need to specifically handle enhanced for syntax
+    return false; // Placeholder - enhanced for loop parsing not fully implemented
+  }
+
+  private extractEnhancedForInfo(forNode: ForLoopNode, context: TransformationContext): {
+    itemVariable: string;
+    arrayVariable: string;
+    arrayName: string;
+  } | null {
+    // This would extract information from an enhanced for loop
+    // For now, return null as enhanced for loop parsing is not fully implemented
+    return null;
   }
 
   private isSimpleCountingLoop(forNode: ForLoopNode): boolean {
@@ -662,6 +771,129 @@ export class MethodDeclarationRule extends BaseTransformationRule {
   }
 }
 
+// Array Access Transformation Rule
+export class ArrayAccessRule extends BaseTransformationRule {
+  nodeType = NodeType.ARRAY_ACCESS;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const arrayAccessNode = node as ArrayAccessNode;
+    
+    // Transform array expression
+    const arrayNodes = context.transformer.transformNode(arrayAccessNode.array, context);
+    const arrayContent = arrayNodes.map(n => n.content).join('');
+    
+    // Transform index expression
+    const indexNodes = context.transformer.transformNode(arrayAccessNode.index, context);
+    const indexContent = indexNodes.map(n => n.content).join('');
+    
+    // Preserve bracket notation as per IB pseudocode specification
+    const content = `${arrayContent}[${indexContent}]`;
+
+    return [this.createPseudocodeNode(
+      PseudocodeNodeType.EXPRESSION,
+      content,
+      node.location
+    )];
+  }
+}
+
+// Method Call Transformation Rule (Enhanced for array.length)
+export class MethodCallRule extends BaseTransformationRule {
+  nodeType = NodeType.METHOD_CALL;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const methodCallNode = node as MethodCallNode;
+    
+    // Handle array.length special case
+    if (methodCallNode.object && methodCallNode.methodName === 'length') {
+      const objectNodes = context.transformer.transformNode(methodCallNode.object, context);
+      const objectContent = objectNodes.map(n => n.content).join('');
+      
+      // Convert array.length to SIZE(ARRAY) format
+      const content = context.ibRules.convertArrayLength(objectContent);
+      
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.EXPRESSION,
+        content,
+        node.location
+      )];
+    }
+    
+    // Handle System.out.print/println for I/O transformation
+    if (methodCallNode.object && 
+        this.getObjectName(methodCallNode.object) === 'System.out' &&
+        (methodCallNode.methodName === 'print' || methodCallNode.methodName === 'println')) {
+      
+      // Transform arguments
+      const argContents = methodCallNode.arguments.map(arg => {
+        const argNodes = context.transformer.transformNode(arg, context);
+        return argNodes.map(n => n.content).join('');
+      });
+      
+      const outputContent = argContents.join(', ');
+      const content = context.ibRules.convertIOStatement('output', outputContent);
+      
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        content,
+        node.location,
+        context.indentLevel
+      )];
+    }
+    
+    // Regular method call transformation
+    let objectContent = '';
+    if (methodCallNode.object) {
+      const objectNodes = context.transformer.transformNode(methodCallNode.object, context);
+      objectContent = objectNodes.map(n => n.content).join('') + '.';
+    }
+    
+    // Transform method name to UPPERCASE
+    const methodName = context.ibRules.convertVariableName(methodCallNode.methodName);
+    
+    // Transform arguments
+    const argContents = methodCallNode.arguments.map(arg => {
+      const argNodes = context.transformer.transformNode(arg, context);
+      return argNodes.map(n => n.content).join('');
+    });
+    
+    const argumentList = argContents.join(', ');
+    const content = `${objectContent}${methodName}(${argumentList})`;
+
+    return [this.createPseudocodeNode(
+      PseudocodeNodeType.EXPRESSION,
+      content,
+      node.location
+    )];
+  }
+
+  private getObjectName(objectNode: ASTNode): string {
+    if (objectNode.type === NodeType.IDENTIFIER) {
+      return (objectNode as IdentifierNode).name;
+    }
+    // Handle more complex object expressions if needed
+    return 'unknown';
+  }
+}
+
+// Program Transformation Rule
+export class ProgramRule extends BaseTransformationRule {
+  nodeType = NodeType.PROGRAM;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const programNode = node as ProgramNode;
+    const result: PseudocodeNode[] = [];
+
+    // Transform all declarations in the program
+    for (const declaration of programNode.declarations) {
+      const declarationNodes = context.transformer.transformNode(declaration, context);
+      result.push(...declarationNodes);
+    }
+
+    return result;
+  }
+}
+
 // Return Statement Transformation Rule
 export class ReturnStatementRule extends BaseTransformationRule {
   nodeType = NodeType.RETURN_STATEMENT;
@@ -706,6 +938,7 @@ export class ASTTransformer {
 
   private initializeRules(): void {
     const rules: TransformationRule[] = [
+      new ProgramRule(),
       new VariableDeclarationRule(),
       new AssignmentRule(),
       new BinaryExpressionRule(),
@@ -715,6 +948,8 @@ export class ASTTransformer {
       new WhileLoopRule(),
       new ForLoopRule(),
       new MethodDeclarationRule(),
+      new ArrayAccessRule(),
+      new MethodCallRule(),
       new ReturnStatementRule()
     ];
 

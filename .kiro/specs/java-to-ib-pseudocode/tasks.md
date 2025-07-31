@@ -64,7 +64,7 @@
   - Commit changes with message "feat: implement control structure transformations"
   - _Requirements: 4.1, 4.2, 4.3, 4.4_
 
-- [-] 8. Add method and function transformation
+- [x] 8. Add method and function transformation
   - Implement void method transformation to PROCEDURE format
   - Add non-void method transformation to FUNCTION with RETURNS value format
   - Create parameter name conversion to UPPERCASE
@@ -74,7 +74,7 @@
   - Commit changes with message "feat: implement method and function transformations"
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [ ] 9. Implement array operations transformation
+- [-] 9. Implement array operations transformation
   - Add array declaration transformation with UPPERCASE naming
   - Implement array access transformation preserving bracket notation
   - Add array.length to SIZE(ARRAY) conversion

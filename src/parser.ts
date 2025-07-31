@@ -319,7 +319,15 @@ export class Parser {
 
   private parseVariableDeclarationWithoutSemicolon(): VariableDeclarationNode {
     const location = this.getCurrentLocation();
-    const dataType = this.advance().value;
+    let dataType = this.advance().value;
+    
+    // Handle array types (e.g., int[], String[])
+    if (this.check(TokenType.PUNCTUATION, '[')) {
+      this.advance(); // consume '['
+      this.consume(TokenType.PUNCTUATION, "Expected ']' after '['", ']');
+      dataType += '[]';
+    }
+    
     const name = this.consume(TokenType.IDENTIFIER, "Expected variable name").value;
 
     let initializer: ASTNode | undefined;
@@ -857,7 +865,8 @@ export class Parser {
   }
 
   private checkDataType(): boolean {
-    return this.check(TokenType.KEYWORD, 'int') ||
+    // Check for basic data types (including array types)
+    const isBasicType = this.check(TokenType.KEYWORD, 'int') ||
            this.check(TokenType.KEYWORD, 'double') ||
            this.check(TokenType.KEYWORD, 'boolean') ||
            this.check(TokenType.KEYWORD, 'String') ||
@@ -867,6 +876,8 @@ export class Parser {
            this.check(TokenType.KEYWORD, 'long') ||
            this.check(TokenType.KEYWORD, 'short') ||
            this.check(TokenType.KEYWORD, 'byte');
+    
+    return isBasicType;
   }
 
   private advance(): Token {
