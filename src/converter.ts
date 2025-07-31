@@ -26,11 +26,42 @@ export class JavaToIBConverter {
    */
   convert(javaCode: string, options?: ConversionOptions): ConversionResult {
     const startTime = Date.now();
+    
+    // Handle null/undefined input
+    if (javaCode === null || javaCode === undefined) {
+      return this.createErrorResult(
+        'Input code is null or undefined',
+        1,
+        Date.now() - startTime,
+        [{
+          type: ErrorType.CONVERSION_ERROR,
+          message: 'Input code is null or undefined',
+          location: { line: 1, column: 1 },
+          severity: ErrorSeverity.ERROR,
+        }]
+      );
+    }
+
     const originalLines = javaCode.split('\n').length;
     const errors: ConversionError[] = [];
     const warnings: ConversionError[] = [];
 
     try {
+      // Validate input
+      if (!javaCode || javaCode.trim().length === 0) {
+        return this.createErrorResult(
+          'Empty or invalid Java code provided',
+          originalLines,
+          Date.now() - startTime,
+          [{
+            type: ErrorType.CONVERSION_ERROR,
+            message: 'Input code is empty or contains only whitespace',
+            location: { line: 1, column: 1 },
+            severity: ErrorSeverity.ERROR,
+          }]
+        );
+      }
+
       // Step 1: Lexical Analysis
       const lexer = new Lexer(javaCode);
       const tokenizeResult = lexer.tokenize();
@@ -43,7 +74,12 @@ export class JavaToIBConverter {
           'No tokens found in input code',
           originalLines,
           Date.now() - startTime,
-          errors
+          errors.length > 0 ? errors : [{
+            type: ErrorType.LEXICAL_ERROR,
+            message: 'No valid tokens could be extracted from the input code',
+            location: { line: 1, column: 1 },
+            severity: ErrorSeverity.ERROR,
+          }]
         );
       }
 
@@ -59,7 +95,12 @@ export class JavaToIBConverter {
           'Failed to parse Java code',
           originalLines,
           Date.now() - startTime,
-          errors
+          errors.length > 0 ? errors : [{
+            type: ErrorType.SYNTAX_ERROR,
+            message: 'Could not build a valid syntax tree from the input code',
+            location: { line: 1, column: 1 },
+            severity: ErrorSeverity.ERROR,
+          }]
         );
       }
 
@@ -67,6 +108,26 @@ export class JavaToIBConverter {
       const transformResult = this.transformer.transform(parseResult.ast);
       if (transformResult.errors.length > 0) {
         errors.push(...transformResult.errors);
+      }
+
+      // Collect warnings from transformation
+      if (transformResult.warnings && transformResult.warnings.length > 0) {
+        warnings.push(...transformResult.warnings);
+      }
+
+      // If transformation failed completely, return error
+      if (transformResult.pseudocodeAST.length === 0 && errors.length === 0) {
+        return this.createErrorResult(
+          'Failed to transform Java code to pseudocode',
+          originalLines,
+          Date.now() - startTime,
+          [{
+            type: ErrorType.CONVERSION_ERROR,
+            message: 'No pseudocode could be generated from the input',
+            location: { line: 1, column: 1 },
+            severity: ErrorSeverity.ERROR,
+          }]
+        );
       }
 
       // Step 4: Code Generation
@@ -80,11 +141,19 @@ export class JavaToIBConverter {
       const criticalErrors = errors.filter(e => e.severity === ErrorSeverity.ERROR);
       const success = criticalErrors.length === 0 && pseudocode.trim().length > 0;
 
+      // Convert warnings to proper format
+      const formattedWarnings = warnings.map(w => ({
+        type: w.type,
+        message: w.message,
+        location: w.location,
+        severity: w.severity
+      }));
+
       return {
         pseudocode,
         success,
         errors: criticalErrors,
-        warnings: errors.filter(e => e.severity === ErrorSeverity.WARNING),
+        warnings: formattedWarnings,
         metadata: {
           originalLines,
           convertedLines,
@@ -99,6 +168,13 @@ export class JavaToIBConverter {
         errors.push({
           type: ErrorType.CONVERSION_ERROR,
           message: `Unexpected error during conversion: ${error.message}`,
+          location: { line: 1, column: 1 },
+          severity: ErrorSeverity.ERROR,
+        });
+      } else {
+        errors.push({
+          type: ErrorType.CONVERSION_ERROR,
+          message: 'An unknown error occurred during conversion',
           location: { line: 1, column: 1 },
           severity: ErrorSeverity.ERROR,
         });

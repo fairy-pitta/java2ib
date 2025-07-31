@@ -24,9 +24,10 @@ export interface ConversionError {
 }
 
 export interface ConversionWarning {
-  type: string;
+  type: ErrorType;
   message: string;
   location: SourceLocation;
+  severity: ErrorSeverity;
 }
 
 export interface ConversionMetadata {

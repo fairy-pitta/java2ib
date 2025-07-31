@@ -93,7 +93,7 @@
   - Commit changes with message "feat: implement I/O statement transformations"
   - _Requirements: 8.1, 8.2, 8.3_
 
-- [-] 11. Implement pseudocode generation system
+- [x] 11. Implement pseudocode generation system
   - Create PseudocodeNode interface and code generation classes
   - Implement proper indentation and formatting logic
   - Add comment preservation functionality
@@ -102,7 +102,7 @@
   - Commit changes with message "feat: implement pseudocode generation system"
   - _Requirements: 2.1, 2.2, 10.3_
 
-- [ ] 12. Build main converter API
+- [-] 12. Build main converter API
   - Create JavaToIBConverter main class with convert method
   - Implement ConversionOptions and ConversionResult interfaces
   - Add comprehensive error handling and warning system

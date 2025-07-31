@@ -1072,9 +1072,13 @@ export class ASTTransformer {
   /**
    * Transform a Java AST into IB Pseudocode AST
    * @param ast - The Java AST to transform
-   * @returns Transformation result with pseudocode AST and any errors
+   * @returns Transformation result with pseudocode AST, errors, and warnings
    */
-  transform(ast: ASTNode): { pseudocodeAST: PseudocodeNode[], errors: ConversionError[] } {
+  transform(ast: ASTNode): { 
+    pseudocodeAST: PseudocodeNode[], 
+    errors: ConversionError[], 
+    warnings: ConversionError[] 
+  } {
     this.errors = [];
     
     const context: TransformationContext = {
@@ -1088,12 +1092,21 @@ export class ASTTransformer {
 
     try {
       const pseudocodeAST = this.transformNode(ast, context);
-      return { pseudocodeAST, errors: this.errors };
+      
+      // Separate errors and warnings
+      const errors = this.errors.filter(e => e.severity === ErrorSeverity.ERROR);
+      const warnings = this.errors.filter(e => e.severity === ErrorSeverity.WARNING);
+      
+      return { pseudocodeAST, errors, warnings };
     } catch (error) {
       if (error instanceof Error) {
         this.addError(ErrorType.CONVERSION_ERROR, error.message, ast.location);
       }
-      return { pseudocodeAST: [], errors: this.errors };
+      
+      const errors = this.errors.filter(e => e.severity === ErrorSeverity.ERROR);
+      const warnings = this.errors.filter(e => e.severity === ErrorSeverity.WARNING);
+      
+      return { pseudocodeAST: [], errors, warnings };
     }
   }
 
@@ -1131,6 +1144,15 @@ export class ASTTransformer {
       message,
       location,
       severity: ErrorSeverity.ERROR
+    });
+  }
+
+  private addWarning(type: ErrorType, message: string, location: SourceLocation): void {
+    this.errors.push({
+      type,
+      message,
+      location,
+      severity: ErrorSeverity.WARNING
     });
   }
 
