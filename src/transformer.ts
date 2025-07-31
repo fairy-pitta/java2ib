@@ -266,6 +266,298 @@ export class LiteralRule extends BaseTransformationRule {
   }
 }
 
+// If Statement Transformation Rule
+export class IfStatementRule extends BaseTransformationRule {
+  nodeType = NodeType.IF_STATEMENT;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const ifNode = node as IfStatementNode;
+    const result: PseudocodeNode[] = [];
+
+    // Transform condition
+    const conditionNodes = context.transformer.transformNode(ifNode.condition, context);
+    const conditionContent = conditionNodes.map(n => n.content).join('');
+
+    // Create if statement
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      `if ${conditionContent} then`,
+      node.location,
+      context.indentLevel
+    ));
+
+    // Transform then statement with increased indentation
+    const thenContext = { ...context, indentLevel: context.indentLevel + 1 };
+    const thenNodes = this.transformStatementBody(ifNode.thenStatement, thenContext);
+    result.push(...thenNodes);
+
+    // Transform else statement if present
+    if (ifNode.elseStatement) {
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        'else',
+        node.location,
+        context.indentLevel
+      ));
+
+      const elseContext = { ...context, indentLevel: context.indentLevel + 1 };
+      const elseNodes = this.transformStatementBody(ifNode.elseStatement, elseContext);
+      result.push(...elseNodes);
+    }
+
+    // End if
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      'end if',
+      node.location,
+      context.indentLevel
+    ));
+
+    return result;
+  }
+
+  private transformStatementBody(statement: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    // Handle block statements (multiple statements)
+    if (statement.type === NodeType.PROGRAM && statement.children) {
+      const result: PseudocodeNode[] = [];
+      for (const child of statement.children) {
+        const childNodes = context.transformer.transformNode(child, context);
+        result.push(...childNodes);
+      }
+      return result;
+    }
+
+    // Handle single statement
+    return context.transformer.transformNode(statement, context);
+  }
+}
+
+// While Loop Transformation Rule
+export class WhileLoopRule extends BaseTransformationRule {
+  nodeType = NodeType.WHILE_LOOP;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const whileNode = node as WhileLoopNode;
+    const result: PseudocodeNode[] = [];
+
+    // Transform condition
+    const conditionNodes = context.transformer.transformNode(whileNode.condition, context);
+    const conditionContent = conditionNodes.map(n => n.content).join('');
+
+    // Create loop while statement
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      `loop while ${conditionContent}`,
+      node.location,
+      context.indentLevel
+    ));
+
+    // Transform body with increased indentation
+    const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+    const bodyNodes = this.transformStatementBody(whileNode.body, bodyContext);
+    result.push(...bodyNodes);
+
+    // End loop
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      'end loop',
+      node.location,
+      context.indentLevel
+    ));
+
+    return result;
+  }
+
+  private transformStatementBody(statement: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    // Handle block statements (multiple statements)
+    if (statement.type === NodeType.PROGRAM && statement.children) {
+      const result: PseudocodeNode[] = [];
+      for (const child of statement.children) {
+        const childNodes = context.transformer.transformNode(child, context);
+        result.push(...childNodes);
+      }
+      return result;
+    }
+
+    // Handle single statement
+    return context.transformer.transformNode(statement, context);
+  }
+}
+
+// For Loop Transformation Rule
+export class ForLoopRule extends BaseTransformationRule {
+  nodeType = NodeType.FOR_LOOP;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const forNode = node as ForLoopNode;
+    const result: PseudocodeNode[] = [];
+
+    // Check if this is a simple counting for loop (for(int i = start; i < end; i++))
+    if (this.isSimpleCountingLoop(forNode)) {
+      const loopInfo = this.extractSimpleLoopInfo(forNode, context);
+      if (loopInfo) {
+        // Create IB-style counting loop: loop I from X to Y
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          `loop ${loopInfo.variable} from ${loopInfo.start} to ${loopInfo.end}`,
+          node.location,
+          context.indentLevel
+        ));
+
+        // Transform body with increased indentation
+        const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+        const bodyNodes = this.transformStatementBody(forNode.body, bodyContext);
+        result.push(...bodyNodes);
+
+        // End loop
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          'end loop',
+          node.location,
+          context.indentLevel
+        ));
+
+        return result;
+      }
+    }
+
+    // For complex for loops, convert to while loop equivalent
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.COMMENT,
+      '// Complex for loop converted to while loop',
+      node.location,
+      context.indentLevel
+    ));
+
+    // Transform initialization if present
+    if (forNode.initialization) {
+      const initNodes = context.transformer.transformNode(forNode.initialization, context);
+      result.push(...initNodes);
+    }
+
+    // Create while loop with condition
+    if (forNode.condition) {
+      const conditionNodes = context.transformer.transformNode(forNode.condition, context);
+      const conditionContent = conditionNodes.map(n => n.content).join('');
+
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        `loop while ${conditionContent}`,
+        node.location,
+        context.indentLevel
+      ));
+
+      // Transform body with increased indentation
+      const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+      const bodyNodes = this.transformStatementBody(forNode.body, bodyContext);
+      result.push(...bodyNodes);
+
+      // Transform update statement if present
+      if (forNode.update) {
+        const updateNodes = context.transformer.transformNode(forNode.update, bodyContext);
+        result.push(...updateNodes);
+      }
+
+      // End loop
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.STATEMENT,
+        'end loop',
+        node.location,
+        context.indentLevel
+      ));
+    }
+
+    return result;
+  }
+
+  private isSimpleCountingLoop(forNode: ForLoopNode): boolean {
+    // Check if this matches pattern: for(int i = start; i < end; i++)
+    if (!forNode.initialization || !forNode.condition || !forNode.update) {
+      return false;
+    }
+
+    // Check initialization: int i = start
+    if (forNode.initialization.type !== NodeType.VARIABLE_DECLARATION) {
+      return false;
+    }
+
+    // Check condition: i < end or i <= end
+    if (forNode.condition.type !== NodeType.BINARY_EXPRESSION) {
+      return false;
+    }
+
+    const conditionNode = forNode.condition as BinaryExpressionNode;
+    if (!['<', '<='].includes(conditionNode.operator)) {
+      return false;
+    }
+
+    // Check update: i++ or ++i
+    if (forNode.update.type !== NodeType.BINARY_EXPRESSION) {
+      return false;
+    }
+
+    const updateNode = forNode.update as BinaryExpressionNode;
+    if (!['++', '--'].includes(updateNode.operator)) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private extractSimpleLoopInfo(forNode: ForLoopNode, context: TransformationContext): {
+    variable: string;
+    start: string;
+    end: string;
+  } | null {
+    try {
+      // Extract variable name from initialization
+      const initNode = forNode.initialization as VariableDeclarationNode;
+      const variableName = context.ibRules.convertVariableName(initNode.name);
+
+      // Extract start value
+      let startValue = '0';
+      if (initNode.initializer) {
+        const startNodes = context.transformer.transformNode(initNode.initializer, context);
+        startValue = startNodes.map(n => n.content).join('');
+      }
+
+      // Extract end value from condition
+      const conditionNode = forNode.condition as BinaryExpressionNode;
+      const endNodes = context.transformer.transformNode(conditionNode.right, context);
+      let endValue = endNodes.map(n => n.content).join('');
+
+      // Adjust end value for <= vs < comparison
+      if (conditionNode.operator === '<') {
+        // For i < n, the loop goes from start to n-1
+        endValue = `${endValue} - 1`;
+      }
+
+      return {
+        variable: variableName,
+        start: startValue,
+        end: endValue
+      };
+    } catch (error) {
+      return null;
+    }
+  }
+
+  private transformStatementBody(statement: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    // Handle block statements (multiple statements)
+    if (statement.type === NodeType.PROGRAM && statement.children) {
+      const result: PseudocodeNode[] = [];
+      for (const child of statement.children) {
+        const childNodes = context.transformer.transformNode(child, context);
+        result.push(...childNodes);
+      }
+      return result;
+    }
+
+    // Handle single statement
+    return context.transformer.transformNode(statement, context);
+  }
+}
+
 // Main AST Transformer Class
 export class ASTTransformer {
   private rules: Map<NodeType, TransformationRule>;
@@ -284,7 +576,10 @@ export class ASTTransformer {
       new AssignmentRule(),
       new BinaryExpressionRule(),
       new IdentifierRule(),
-      new LiteralRule()
+      new LiteralRule(),
+      new IfStatementRule(),
+      new WhileLoopRule(),
+      new ForLoopRule()
     ];
 
     for (const rule of rules) {

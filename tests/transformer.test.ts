@@ -9,6 +9,9 @@ import {
   BinaryExpressionRule,
   IdentifierRule,
   LiteralRule,
+  IfStatementRule,
+  WhileLoopRule,
+  ForLoopRule,
   PseudocodeNodeType,
   TransformationContext
 } from '../src/transformer';
@@ -22,7 +25,10 @@ import {
   AssignmentNode,
   BinaryExpressionNode,
   IdentifierNode,
-  LiteralNode
+  LiteralNode,
+  IfStatementNode,
+  WhileLoopNode,
+  ForLoopNode
 } from '../src/parser';
 import { IBRulesEngine } from '../src/ib-rules-engine';
 

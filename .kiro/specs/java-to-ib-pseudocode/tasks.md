@@ -45,7 +45,7 @@
   - Commit changes with message "feat: implement IB pseudocode rules engine"
   - _Requirements: 3.1, 3.2, 5.1, 5.2, 5.3, 5.4_
 
-- [-] 6. Build AST transformation system
+- [x] 6. Build AST transformation system
   - Create TransformationRule interface and base transformation classes
   - Implement variable declaration and assignment transformation rules
   - Add expression and operator transformation logic
@@ -54,7 +54,7 @@
   - Commit changes with message "feat: implement AST transformation system"
   - _Requirements: 3.1, 3.2, 3.3, 5.1, 5.2_
 
-- [ ] 7. Implement control structure transformations
+- [-] 7. Implement control structure transformations
   - Add if-else statement transformation to "if...then...else...end if" format
   - Implement if-elif-else chain transformation with proper nesting
   - Add while loop transformation to "loop while...end loop" format
