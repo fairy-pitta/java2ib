@@ -102,7 +102,7 @@
   - Commit changes with message "feat: implement pseudocode generation system"
   - _Requirements: 2.1, 2.2, 10.3_
 
-- [-] 12. Build main converter API
+- [x] 12. Build main converter API
   - Create JavaToIBConverter main class with convert method
   - Implement ConversionOptions and ConversionResult interfaces
   - Add comprehensive error handling and warning system
@@ -111,7 +111,7 @@
   - Commit changes with message "feat: implement main converter API"
   - _Requirements: 2.1, 2.2, 9.1, 9.2, 9.3_
 
-- [ ] 13. Add object-oriented programming support
+- [-] 13. Add object-oriented programming support
   - Implement class declaration transformation
   - Add inheritance handling and conversion
   - Transform static method declarations appropriately

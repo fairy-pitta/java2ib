@@ -22,6 +22,7 @@ export interface ProgramNode extends ASTNode {
 export interface ClassDeclarationNode extends ASTNode {
   type: NodeType.CLASS_DECLARATION;
   name: string;
+  superClass?: string;
   methods: MethodDeclarationNode[];
   fields: VariableDeclarationNode[];
 }
@@ -228,6 +229,13 @@ export class Parser {
     
     // 'class' keyword already consumed
     const name = this.consume(TokenType.IDENTIFIER, "Expected class name").value;
+    
+    // Check for inheritance (extends keyword)
+    let superClass: string | undefined;
+    if (this.match('extends')) {
+      superClass = this.consume(TokenType.IDENTIFIER, "Expected superclass name after 'extends'").value;
+    }
+    
     this.consume(TokenType.PUNCTUATION, "Expected '{' after class name", '{');
 
     const methods: MethodDeclarationNode[] = [];
@@ -250,6 +258,7 @@ export class Parser {
       type: NodeType.CLASS_DECLARATION,
       location,
       name,
+      superClass,
       methods,
       fields,
       children: [...fields, ...methods]
@@ -281,7 +290,15 @@ export class Parser {
 
     if (!this.check(TokenType.PUNCTUATION, ')')) {
       do {
-        const paramType = this.advance().value;
+        let paramType = this.advance().value;
+        
+        // Handle array types (e.g., String[], int[])
+        if (this.check(TokenType.PUNCTUATION, '[')) {
+          this.advance(); // consume '['
+          this.consume(TokenType.PUNCTUATION, "Expected ']' after '['", ']');
+          paramType += '[]';
+        }
+        
         const paramName = this.consume(TokenType.IDENTIFIER, "Expected parameter name").value;
         parameters.push({
           type: NodeType.IDENTIFIER, // Using IDENTIFIER as base type for parameters

@@ -776,9 +776,19 @@ export class MethodDeclarationRule extends BaseTransformationRule {
 
     if (methodNode.isVoid) {
       // Transform void method to PROCEDURE format
-      const procedureHeader = parameterList 
+      let procedureHeader = parameterList 
         ? `PROCEDURE ${methodInfo.pseudocodeName}(${parameterList})`
         : `PROCEDURE ${methodInfo.pseudocodeName}()`;
+      
+      // Add static modifier comment if applicable
+      if (methodNode.isStatic) {
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.COMMENT,
+          '// Static method',
+          node.location,
+          context.indentLevel
+        ));
+      }
       
       result.push(this.createPseudocodeNode(
         PseudocodeNodeType.STATEMENT,
@@ -788,9 +798,19 @@ export class MethodDeclarationRule extends BaseTransformationRule {
       ));
     } else {
       // Transform non-void method to FUNCTION format
-      const functionHeader = parameterList
+      let functionHeader = parameterList
         ? `FUNCTION ${methodInfo.pseudocodeName}(${parameterList})`
         : `FUNCTION ${methodInfo.pseudocodeName}()`;
+      
+      // Add static modifier comment if applicable
+      if (methodNode.isStatic) {
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.COMMENT,
+          '// Static method',
+          node.location,
+          context.indentLevel
+        ));
+      }
       
       result.push(this.createPseudocodeNode(
         PseudocodeNodeType.STATEMENT,
@@ -1035,6 +1055,84 @@ export class ReturnStatementRule extends BaseTransformationRule {
   }
 }
 
+// Class Declaration Transformation Rule
+export class ClassDeclarationRule extends BaseTransformationRule {
+  nodeType = NodeType.CLASS_DECLARATION;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const classNode = node as ClassDeclarationNode;
+    const result: PseudocodeNode[] = [];
+
+    // Convert class name to UPPERCASE
+    const className = context.ibRules.convertVariableName(classNode.name);
+    
+    // Create class declaration comment
+    let classHeader = `// CLASS ${className}`;
+    if (classNode.superClass) {
+      const superClassName = context.ibRules.convertVariableName(classNode.superClass);
+      classHeader += ` INHERITS FROM ${superClassName}`;
+    }
+    
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.COMMENT,
+      classHeader,
+      node.location,
+      context.indentLevel
+    ));
+
+    // Create new scope for the class
+    const classContext = {
+      ...context,
+      currentScope: {
+        name: classNode.name,
+        type: 'class' as const,
+        parent: context.currentScope
+      }
+    };
+
+    // Transform class fields (instance variables)
+    if (classNode.fields.length > 0) {
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.COMMENT,
+        '// Class fields',
+        node.location,
+        context.indentLevel
+      ));
+
+      for (const field of classNode.fields) {
+        const fieldNodes = context.transformer.transformNode(field, classContext);
+        result.push(...fieldNodes);
+      }
+    }
+
+    // Transform class methods
+    for (const method of classNode.methods) {
+      // Add spacing between methods
+      if (result.length > 0) {
+        result.push(this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          '',
+          node.location,
+          context.indentLevel
+        ));
+      }
+
+      const methodNodes = context.transformer.transformNode(method, classContext);
+      result.push(...methodNodes);
+    }
+
+    // Add end of class comment
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.COMMENT,
+      `// END CLASS ${className}`,
+      node.location,
+      context.indentLevel
+    ));
+
+    return result;
+  }
+}
+
 // Main AST Transformer Class
 export class ASTTransformer {
   private rules: Map<NodeType, TransformationRule>;
@@ -1050,6 +1148,7 @@ export class ASTTransformer {
   private initializeRules(): void {
     const rules: TransformationRule[] = [
       new ProgramRule(),
+      new ClassDeclarationRule(),
       new VariableDeclarationRule(),
       new AssignmentRule(),
       new BinaryExpressionRule(),
