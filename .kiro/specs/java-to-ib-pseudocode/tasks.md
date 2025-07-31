@@ -74,7 +74,7 @@
   - Commit changes with message "feat: implement method and function transformations"
   - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [-] 9. Implement array operations transformation
+- [x] 9. Implement array operations transformation
   - Add array declaration transformation with UPPERCASE naming
   - Implement array access transformation preserving bracket notation
   - Add array.length to SIZE(ARRAY) conversion
@@ -84,7 +84,7 @@
   - Commit changes with message "feat: implement array operations transformation"
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 10. Add input/output statement transformation
+- [-] 10. Add input/output statement transformation
   - Implement System.out.print/println to "output" statement conversion
   - Add Scanner input operations to "INPUT" statement transformation
   - Handle prompt separation for input statements

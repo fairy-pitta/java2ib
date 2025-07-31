@@ -124,6 +124,25 @@ export class VariableDeclarationRule extends BaseTransformationRule {
 
     let content: string;
     if (varNode.initializer) {
+      // Check if initializer is a Scanner input operation
+      if (varNode.initializer.type === NodeType.METHOD_CALL) {
+        const methodCall = varNode.initializer as MethodCallNode;
+        if (methodCall.object && 
+            this.isScannerObject(methodCall.object) &&
+            this.isScannerInputMethod(methodCall.methodName)) {
+          
+          // Convert Scanner input to INPUT statement
+          content = context.ibRules.convertIOStatement('input', pseudocodeName);
+          
+          return [this.createPseudocodeNode(
+            PseudocodeNodeType.STATEMENT,
+            content,
+            node.location,
+            context.indentLevel
+          )];
+        }
+      }
+      
       // Transform the initializer expression
       const initializerNodes = context.transformer.transformNode(varNode.initializer, context);
       const initializerContent = initializerNodes.map(n => n.content).join('');
@@ -141,6 +160,26 @@ export class VariableDeclarationRule extends BaseTransformationRule {
       context.indentLevel
     )];
   }
+
+  private isScannerObject(objectNode: ASTNode): boolean {
+    if (objectNode.type === NodeType.IDENTIFIER) {
+      const objectName = (objectNode as IdentifierNode).name;
+      // Check if the object is a Scanner instance (common names: scanner, input, sc, etc.)
+      return objectName.toLowerCase().includes('scanner') || 
+             objectName === 'input' || 
+             objectName === 'sc' ||
+             objectName === 'in';
+    }
+    return false;
+  }
+
+  private isScannerInputMethod(methodName: string): boolean {
+    const scannerMethods = [
+      'nextInt', 'nextDouble', 'nextFloat', 'nextLong', 
+      'nextBoolean', 'next', 'nextLine'
+    ];
+    return scannerMethods.includes(methodName);
+  }
 }
 
 // Assignment Transformation Rule
@@ -153,6 +192,25 @@ export class AssignmentRule extends BaseTransformationRule {
     // Transform left side (variable name)
     const leftNodes = context.transformer.transformNode(assignNode.left, context);
     const leftContent = leftNodes.map(n => n.content).join('');
+    
+    // Check if right side is a Scanner input operation
+    if (assignNode.right.type === NodeType.METHOD_CALL) {
+      const methodCall = assignNode.right as MethodCallNode;
+      if (methodCall.object && 
+          this.isScannerObject(methodCall.object) &&
+          this.isScannerInputMethod(methodCall.methodName)) {
+        
+        // Convert Scanner input to INPUT statement
+        const content = context.ibRules.convertIOStatement('input', leftContent);
+        
+        return [this.createPseudocodeNode(
+          PseudocodeNodeType.STATEMENT,
+          content,
+          node.location,
+          context.indentLevel
+        )];
+      }
+    }
     
     // Transform right side (expression)
     const rightNodes = context.transformer.transformNode(assignNode.right, context);
@@ -178,6 +236,26 @@ export class AssignmentRule extends BaseTransformationRule {
       node.location,
       context.indentLevel
     )];
+  }
+
+  private isScannerObject(objectNode: ASTNode): boolean {
+    if (objectNode.type === NodeType.IDENTIFIER) {
+      const objectName = (objectNode as IdentifierNode).name;
+      // Check if the object is a Scanner instance (common names: scanner, input, sc, etc.)
+      return objectName.toLowerCase().includes('scanner') || 
+             objectName === 'input' || 
+             objectName === 'sc' ||
+             objectName === 'in';
+    }
+    return false;
+  }
+
+  private isScannerInputMethod(methodName: string): boolean {
+    const scannerMethods = [
+      'nextInt', 'nextDouble', 'nextFloat', 'nextLong', 
+      'nextBoolean', 'next', 'nextLine'
+    ];
+    return scannerMethods.includes(methodName);
   }
 }
 
@@ -841,6 +919,21 @@ export class MethodCallRule extends BaseTransformationRule {
       )];
     }
     
+    // Handle Scanner input operations (nextInt, nextLine, next, nextDouble, etc.)
+    if (methodCallNode.object && 
+        this.isScannerObject(methodCallNode.object) &&
+        this.isScannerInputMethod(methodCallNode.methodName)) {
+      
+      // Scanner input methods don't take arguments in the method call itself
+      // The variable assignment will be handled by the assignment transformation
+      // For now, we'll return a placeholder that will be replaced by assignment handling
+      return [this.createPseudocodeNode(
+        PseudocodeNodeType.EXPRESSION,
+        'INPUT_PLACEHOLDER',
+        node.location
+      )];
+    }
+    
     // Regular method call transformation
     let objectContent = '';
     if (methodCallNode.object) {
@@ -873,6 +966,24 @@ export class MethodCallRule extends BaseTransformationRule {
     }
     // Handle more complex object expressions if needed
     return 'unknown';
+  }
+
+  private isScannerObject(objectNode: ASTNode): boolean {
+    const objectName = this.getObjectName(objectNode);
+    // Check if the object is a Scanner instance (common names: scanner, input, sc, etc.)
+    // In a more complete implementation, we'd track variable types
+    return objectName.toLowerCase().includes('scanner') || 
+           objectName === 'input' || 
+           objectName === 'sc' ||
+           objectName === 'in';
+  }
+
+  private isScannerInputMethod(methodName: string): boolean {
+    const scannerMethods = [
+      'nextInt', 'nextDouble', 'nextFloat', 'nextLong', 
+      'nextBoolean', 'next', 'nextLine'
+    ];
+    return scannerMethods.includes(methodName);
   }
 }
 
@@ -1021,6 +1132,22 @@ export class ASTTransformer {
       location,
       severity: ErrorSeverity.ERROR
     });
+  }
+
+  /**
+   * Create a transformation context for testing
+   * @param ibRules - Optional IBRulesEngine instance
+   * @returns A new transformation context
+   */
+  createContext(ibRules?: IBRulesEngine): TransformationContext {
+    return {
+      variables: new Map(),
+      methods: new Map(),
+      currentScope: { name: 'global', type: 'global' },
+      ibRules: ibRules || this.ibRules,
+      indentLevel: 0,
+      transformer: this
+    };
   }
 }
 
