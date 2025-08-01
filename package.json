@@ -35,12 +35,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/example/java-to-ib-pseudocode.git"
+    "url": "https://github.com/fairy-pitta/java2ib.git"
   },
   "bugs": {
-    "url": "https://github.com/example/java-to-ib-pseudocode/issues"
+    "url": "https://github.com/fairy-pitta/java2ib/issues"
   },
-  "homepage": "https://github.com/example/java-to-ib-pseudocode#readme",
+  "homepage": "https://github.com/fairy-pitta/java2ib#readme",
   "type": "commonjs",
   "files": [
     "dist/**/*",

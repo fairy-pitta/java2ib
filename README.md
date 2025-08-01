@@ -533,7 +533,7 @@ npm run test:watch
 
 ## Support
 
-For issues, questions, or contributions, please visit the [GitHub repository](https://github.com/your-username/java-to-ib-pseudocode).
+For issues, questions, or contributions, please visit the [GitHub repository](https://github.com/fairy-pitta/java2ib).
 
 ## License
 
