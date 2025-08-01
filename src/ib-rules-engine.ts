@@ -190,4 +190,53 @@ export class IBRulesEngine {
       return `input ${pseudocodeVar}`;
     }
   }
+
+  /**
+   * Convert Java string length access to IB pseudocode format
+   * @param stringName - The string variable name
+   * @returns The IB pseudocode string length format
+   */
+  convertStringLength(stringName: string): string {
+    const pseudocodeStringName = this.convertVariableName(stringName);
+    return `LENGTH(${pseudocodeStringName})`;
+  }
+
+  /**
+   * Convert Java string operations to IB pseudocode format
+   * @param operation - The string operation type
+   * @param operands - The operands for the operation
+   * @returns The IB pseudocode string operation
+   */
+  convertStringOperation(operation: string, ...operands: string[]): string {
+    switch (operation.toLowerCase()) {
+      case 'equals':
+        return `${operands[0]} = ${operands[1]}`;
+      
+      case 'substring':
+        if (operands.length === 2) {
+          return `SUBSTRING(${operands[0]}, ${operands[1]})`;
+        } else if (operands.length === 3) {
+          return `SUBSTRING(${operands[0]}, ${operands[1]}, ${operands[2]})`;
+        }
+        return `SUBSTRING(${operands.join(', ')})`;
+      
+      case 'charat':
+        return `${operands[0]}[${operands[1]}]`;
+      
+      case 'touppercase':
+        return `UPPER(${operands[0]})`;
+      
+      case 'tolowercase':
+        return `LOWER(${operands[0]})`;
+      
+      case 'indexof':
+        return `POSITION(${operands[1]}, ${operands[0]})`;
+      
+      case 'concat':
+        return `${operands[0]} + ${operands[1]}`;
+      
+      default:
+        return `${operation.toUpperCase()}(${operands.join(', ')})`;
+    }
+  }
 }

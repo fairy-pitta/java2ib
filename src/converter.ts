@@ -2,7 +2,7 @@
  * Main converter class for Java to IB Pseudocode conversion
  */
 
-import { ConversionOptions, ConversionResult, ConversionError, ErrorType, ErrorSeverity } from './types';
+import { ConversionOptions, ConversionResult, ConversionError, ErrorType, ErrorSeverity, SourceLocation } from './types';
 import { Lexer } from './lexer';
 import { Parser } from './parser';
 import { ASTTransformer } from './transformer';
@@ -66,7 +66,12 @@ export class JavaToIBConverter {
       const lexer = new Lexer(javaCode);
       const tokenizeResult = lexer.tokenize();
       if (tokenizeResult.errors.length > 0) {
-        errors.push(...tokenizeResult.errors);
+        // Enhance lexer errors with better messages
+        const enhancedLexErrors = tokenizeResult.errors.map(error => ({
+          ...error,
+          message: this.enhanceErrorMessage(error.message, error.location)
+        }));
+        errors.push(...enhancedLexErrors);
       }
 
       if (tokenizeResult.tokens.length === 0) {
@@ -87,7 +92,12 @@ export class JavaToIBConverter {
       const parser = new Parser(tokenizeResult.tokens);
       const parseResult = parser.parse();
       if (parseResult.errors.length > 0) {
-        errors.push(...parseResult.errors);
+        // Enhance parser errors with better messages
+        const enhancedParseErrors = parseResult.errors.map(error => ({
+          ...error,
+          message: this.enhanceErrorMessage(error.message, error.location)
+        }));
+        errors.push(...enhancedParseErrors);
       }
 
       if (!parseResult.ast) {
@@ -107,7 +117,12 @@ export class JavaToIBConverter {
       // Step 3: AST Transformation
       const transformResult = this.transformer.transform(parseResult.ast);
       if (transformResult.errors.length > 0) {
-        errors.push(...transformResult.errors);
+        // Enhance transformation errors with better messages
+        const enhancedTransformErrors = transformResult.errors.map(error => ({
+          ...error,
+          message: this.enhanceErrorMessage(error.message, error.location)
+        }));
+        errors.push(...enhancedTransformErrors);
       }
 
       // Collect warnings from transformation
@@ -195,10 +210,16 @@ export class JavaToIBConverter {
     processingTime: number,
     errors: ConversionError[]
   ): ConversionResult {
+    // Enhance error messages with more context
+    const enhancedErrors = errors.map(error => ({
+      ...error,
+      message: this.enhanceErrorMessage(error.message, error.location)
+    }));
+
     return {
       pseudocode: `// Conversion failed: ${message}`,
       success: false,
-      errors,
+      errors: enhancedErrors,
       warnings: [],
       metadata: {
         originalLines,
@@ -206,5 +227,22 @@ export class JavaToIBConverter {
         processingTime,
       },
     };
+  }
+
+  private enhanceErrorMessage(message: string, location: SourceLocation): string {
+    const lineInfo = `at line ${location.line}, column ${location.column}`;
+    
+    // Add contextual information based on error patterns
+    if (message.includes('Expected')) {
+      return `${message} ${lineInfo}. Check for missing punctuation or incorrect syntax.`;
+    } else if (message.includes('Unexpected token')) {
+      return `${message} ${lineInfo}. Verify that all operators and identifiers are valid Java syntax.`;
+    } else if (message.includes('Undefined') || message.includes('not found')) {
+      return `${message} ${lineInfo}. Make sure all variables and methods are properly declared before use.`;
+    } else if (message.includes('type')) {
+      return `${message} ${lineInfo}. Check that variable types match their usage.`;
+    } else {
+      return `${message} ${lineInfo}`;
+    }
   }
 }

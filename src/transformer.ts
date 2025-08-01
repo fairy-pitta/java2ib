@@ -895,7 +895,7 @@ export class ArrayAccessRule extends BaseTransformationRule {
   }
 }
 
-// Method Call Transformation Rule (Enhanced for array.length)
+// Method Call Transformation Rule (Enhanced for array.length and string operations)
 export class MethodCallRule extends BaseTransformationRule {
   nodeType = NodeType.METHOD_CALL;
 
@@ -907,14 +907,120 @@ export class MethodCallRule extends BaseTransformationRule {
       const objectNodes = context.transformer.transformNode(methodCallNode.object, context);
       const objectContent = objectNodes.map(n => n.content).join('');
       
-      // Convert array.length to SIZE(ARRAY) format
-      const content = context.ibRules.convertArrayLength(objectContent);
+      // Check if this is string.length() or array.length
+      if (this.isStringObject(methodCallNode.object, context)) {
+        // String length: convert to LENGTH(STRING)
+        const content = context.ibRules.convertStringLength(objectContent);
+        return [this.createPseudocodeNode(
+          PseudocodeNodeType.EXPRESSION,
+          content,
+          node.location
+        )];
+      } else {
+        // Array length: convert to SIZE(ARRAY)
+        const content = context.ibRules.convertArrayLength(objectContent);
+        return [this.createPseudocodeNode(
+          PseudocodeNodeType.EXPRESSION,
+          content,
+          node.location
+        )];
+      }
+    }
+    
+    // Handle string operations
+    if (methodCallNode.object && this.isStringObject(methodCallNode.object, context)) {
+      const objectNodes = context.transformer.transformNode(methodCallNode.object, context);
+      const objectContent = objectNodes.map(n => n.content).join('');
       
-      return [this.createPseudocodeNode(
-        PseudocodeNodeType.EXPRESSION,
-        content,
-        node.location
-      )];
+      // Handle common string methods
+      switch (methodCallNode.methodName) {
+        case 'equals':
+          if (methodCallNode.arguments.length === 1) {
+            const argNodes = context.transformer.transformNode(methodCallNode.arguments[0], context);
+            const argContent = argNodes.map(n => n.content).join('');
+            return [this.createPseudocodeNode(
+              PseudocodeNodeType.EXPRESSION,
+              `${objectContent} = ${argContent}`,
+              node.location
+            )];
+          }
+          break;
+          
+        case 'equalsIgnoreCase':
+          if (methodCallNode.arguments.length === 1) {
+            const argNodes = context.transformer.transformNode(methodCallNode.arguments[0], context);
+            const argContent = argNodes.map(n => n.content).join('');
+            return [this.createPseudocodeNode(
+              PseudocodeNodeType.EXPRESSION,
+              `UPPER(${objectContent}) = UPPER(${argContent})`,
+              node.location
+            )];
+          }
+          break;
+          
+        case 'substring':
+          if (methodCallNode.arguments.length >= 1) {
+            const argNodes = methodCallNode.arguments.map(arg => {
+              const nodes = context.transformer.transformNode(arg, context);
+              return nodes.map(n => n.content).join('');
+            });
+            
+            if (methodCallNode.arguments.length === 1) {
+              // substring(start)
+              return [this.createPseudocodeNode(
+                PseudocodeNodeType.EXPRESSION,
+                `SUBSTRING(${objectContent}, ${argNodes[0]})`,
+                node.location
+              )];
+            } else {
+              // substring(start, end)
+              return [this.createPseudocodeNode(
+                PseudocodeNodeType.EXPRESSION,
+                `SUBSTRING(${objectContent}, ${argNodes[0]}, ${argNodes[1]})`,
+                node.location
+              )];
+            }
+          }
+          break;
+          
+        case 'charAt':
+          if (methodCallNode.arguments.length === 1) {
+            const argNodes = context.transformer.transformNode(methodCallNode.arguments[0], context);
+            const argContent = argNodes.map(n => n.content).join('');
+            return [this.createPseudocodeNode(
+              PseudocodeNodeType.EXPRESSION,
+              `${objectContent}[${argContent}]`,
+              node.location
+            )];
+          }
+          break;
+          
+        case 'toUpperCase':
+          return [this.createPseudocodeNode(
+            PseudocodeNodeType.EXPRESSION,
+            `UPPER(${objectContent})`,
+            node.location
+          )];
+          
+        case 'toLowerCase':
+          return [this.createPseudocodeNode(
+            PseudocodeNodeType.EXPRESSION,
+            `LOWER(${objectContent})`,
+            node.location
+          )];
+          
+        case 'indexOf':
+          if (methodCallNode.arguments.length === 1) {
+            const argNodes = context.transformer.transformNode(methodCallNode.arguments[0], context);
+            const argContent = argNodes.map(n => n.content).join('');
+            return [this.createPseudocodeNode(
+              PseudocodeNodeType.EXPRESSION,
+              `POSITION(${argContent}, ${objectContent})`,
+              node.location
+            )];
+          }
+          break;
+      }
     }
     
     // Handle System.out.print/println for I/O transformation
@@ -986,6 +1092,23 @@ export class MethodCallRule extends BaseTransformationRule {
     }
     // Handle more complex object expressions if needed
     return 'unknown';
+  }
+
+  private isStringObject(objectNode: ASTNode, context: TransformationContext): boolean {
+    // Check if the object is a string based on variable type or literal
+    if (objectNode.type === NodeType.LITERAL) {
+      const literal = objectNode as LiteralNode;
+      return literal.dataType === 'string';
+    }
+    
+    if (objectNode.type === NodeType.IDENTIFIER) {
+      const identifier = objectNode as IdentifierNode;
+      const variableInfo = context.variables.get(identifier.name);
+      return variableInfo?.type === 'String' || variableInfo?.type === 'string';
+    }
+    
+    // For method calls that return strings, we'd need more sophisticated type tracking
+    return false;
   }
 
   private isScannerObject(objectNode: ASTNode): boolean {
@@ -1063,6 +1186,54 @@ export class ClassDeclarationRule extends BaseTransformationRule {
     const classNode = node as ClassDeclarationNode;
     const result: PseudocodeNode[] = [];
 
+    // Check if this class contains a main method and should extract it
+    const mainMethod = this.findMainMethod(classNode);
+    const shouldExtractMain = mainMethod && this.shouldExtractMainMethod(classNode);
+    
+    if (shouldExtractMain) {
+      // For educational Java code with main method, extract the main method logic
+      result.push(this.createPseudocodeNode(
+        PseudocodeNodeType.COMMENT,
+        '// Main program logic extracted from main method',
+        node.location,
+        context.indentLevel
+      ));
+
+      // Transform main method body directly (without the method declaration wrapper)
+      const mainContext = {
+        ...context,
+        currentScope: {
+          name: 'main',
+          type: 'method' as const,
+          parent: context.currentScope
+        }
+      };
+
+      for (const statement of mainMethod!.body) {
+        const statementNodes = context.transformer.transformNode(statement, mainContext);
+        result.push(...statementNodes);
+      }
+
+      // Transform other non-main methods if any
+      const otherMethods = classNode.methods.filter(m => !this.isMainMethod(m));
+      for (const method of otherMethods) {
+        if (result.length > 0) {
+          result.push(this.createPseudocodeNode(
+            PseudocodeNodeType.STATEMENT,
+            '',
+            node.location,
+            context.indentLevel
+          ));
+        }
+
+        const methodNodes = context.transformer.transformNode(method, context);
+        result.push(...methodNodes);
+      }
+
+      return result;
+    }
+
+    // Regular class transformation (non-main class)
     // Convert class name to UPPERCASE
     const className = context.ibRules.convertVariableName(classNode.name);
     
@@ -1130,6 +1301,32 @@ export class ClassDeclarationRule extends BaseTransformationRule {
     ));
 
     return result;
+  }
+
+  private findMainMethod(classNode: ClassDeclarationNode): MethodDeclarationNode | null {
+    return classNode.methods.find(method => this.isMainMethod(method)) || null;
+  }
+
+  private isMainMethod(method: MethodDeclarationNode): boolean {
+    return method.name === 'main' &&
+           method.isStatic &&
+           method.isVoid &&
+           method.parameters.length === 1 &&
+           method.parameters[0].paramType === 'String[]';
+  }
+
+  private shouldExtractMainMethod(classNode: ClassDeclarationNode): boolean {
+    // Extract main method only if:
+    // 1. The class has no fields (instance variables)
+    // 2. The class has no other methods besides main
+    // 3. AND the class name suggests it's a simple program (not just "MainClass" for OOP examples)
+    
+    const hasFields = classNode.fields.length > 0;
+    const hasOtherMethods = classNode.methods.some(m => !this.isMainMethod(m));
+    const isSimpleProgramClass = /^(Test|Demo|Example|Program|Calculator|Hello|Simple|.*Game|.*Processor|.*Manipulator)/.test(classNode.name);
+    
+    // Only extract if it's a simple class with only main method AND has a program-like name
+    return !hasFields && !hasOtherMethods && isSimpleProgramClass;
   }
 }
 

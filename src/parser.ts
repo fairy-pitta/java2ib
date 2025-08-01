@@ -176,13 +176,50 @@ export class Parser {
         return null;
       }
 
-      // Check for class declaration
+      // Check for class declaration (with or without modifiers)
       if (this.match('class')) {
         return this.parseClassDeclaration();
       }
 
-      // Check for method declaration (public/private/static modifiers)
+      // Check for declarations with modifiers (class, method, or field)
       if (this.checkModifiers()) {
+        const savedPosition = this.current;
+        
+        // Skip modifiers
+        while (this.checkModifiers()) {
+          this.advance();
+        }
+        
+        // Check if next token is 'class'
+        if (this.check(TokenType.KEYWORD, 'class')) {
+          // Reset position and parse as class declaration with modifiers
+          this.current = savedPosition;
+          return this.parseClassDeclarationWithModifiers();
+        }
+        
+        // Check if this is a method or field declaration
+        // Look for: [modifiers] type name ( -> method
+        // Look for: [modifiers] type name ; -> field
+        if (this.checkDataType() || this.check(TokenType.KEYWORD, 'void') || this.check(TokenType.IDENTIFIER)) {
+          this.advance(); // consume type
+          
+          if (this.check(TokenType.IDENTIFIER)) {
+            this.advance(); // consume name
+            
+            if (this.check(TokenType.PUNCTUATION, '(')) {
+              // This is a method declaration
+              this.current = savedPosition;
+              return this.parseMethodDeclaration();
+            } else if (this.check(TokenType.PUNCTUATION, ';') || this.check(TokenType.OPERATOR, '=')) {
+              // This is a field declaration
+              this.current = savedPosition;
+              return this.parseFieldDeclaration();
+            }
+          }
+        }
+        
+        // Reset position and try as method declaration (fallback)
+        this.current = savedPosition;
         return this.parseMethodDeclaration();
       }
 
@@ -265,6 +302,55 @@ export class Parser {
     };
   }
 
+  private parseClassDeclarationWithModifiers(): ClassDeclarationNode {
+    const location = this.getCurrentLocation();
+    
+    // Parse and skip modifiers (we don't use them for class declarations in pseudocode)
+    while (this.checkModifiers()) {
+      this.advance();
+    }
+    
+    // Consume 'class' keyword
+    this.consume(TokenType.KEYWORD, "Expected 'class' keyword", 'class');
+    
+    // Parse class name
+    const name = this.consume(TokenType.IDENTIFIER, "Expected class name").value;
+    
+    // Check for inheritance (extends keyword)
+    let superClass: string | undefined;
+    if (this.match('extends')) {
+      superClass = this.consume(TokenType.IDENTIFIER, "Expected superclass name after 'extends'").value;
+    }
+    
+    this.consume(TokenType.PUNCTUATION, "Expected '{' after class name", '{');
+
+    const methods: MethodDeclarationNode[] = [];
+    const fields: VariableDeclarationNode[] = [];
+
+    while (!this.check(TokenType.PUNCTUATION, '}') && !this.isAtEnd()) {
+      const declaration = this.parseDeclaration();
+      if (declaration) {
+        if (declaration.type === NodeType.METHOD_DECLARATION) {
+          methods.push(declaration as MethodDeclarationNode);
+        } else if (declaration.type === NodeType.VARIABLE_DECLARATION) {
+          fields.push(declaration as VariableDeclarationNode);
+        }
+      }
+    }
+
+    this.consume(TokenType.PUNCTUATION, "Expected '}' after class body", '}');
+
+    return {
+      type: NodeType.CLASS_DECLARATION,
+      location,
+      name,
+      superClass,
+      methods,
+      fields,
+      children: [...fields, ...methods]
+    };
+  }
+
   private parseMethodDeclaration(): MethodDeclarationNode {
     const location = this.getCurrentLocation();
     let isPublic = false;
@@ -277,8 +363,13 @@ export class Parser {
       if (modifier === 'static') isStatic = true;
     }
 
-    // Parse return type
-    const returnType = this.advance().value;
+    // Parse return type (can be keyword like 'void', 'int' or identifier like 'String')
+    let returnType: string;
+    if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
+      returnType = this.advance().value;
+    } else {
+      throw new Error("Expected return type");
+    }
     const isVoid = returnType === 'void';
 
     // Parse method name
@@ -290,7 +381,13 @@ export class Parser {
 
     if (!this.check(TokenType.PUNCTUATION, ')')) {
       do {
-        let paramType = this.advance().value;
+        // Parse parameter type (can be keyword like 'int' or identifier like 'String')
+        let paramType: string;
+        if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
+          paramType = this.advance().value;
+        } else {
+          throw new Error("Expected parameter type");
+        }
         
         // Handle array types (e.g., String[], int[])
         if (this.check(TokenType.PUNCTUATION, '[')) {
@@ -332,6 +429,48 @@ export class Parser {
     const varDecl = this.parseVariableDeclarationWithoutSemicolon();
     this.consume(TokenType.PUNCTUATION, "Expected ';' after variable declaration", ';');
     return varDecl;
+  }
+
+  private parseFieldDeclaration(): VariableDeclarationNode {
+    const location = this.getCurrentLocation();
+    
+    // Skip modifiers (private, public, static, etc.)
+    while (this.checkModifiers()) {
+      this.advance();
+    }
+    
+    // Parse data type
+    let dataType: string;
+    if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
+      dataType = this.advance().value;
+    } else {
+      throw new Error("Expected field type");
+    }
+    
+    // Handle array types (e.g., int[], String[])
+    if (this.check(TokenType.PUNCTUATION, '[')) {
+      this.advance(); // consume '['
+      this.consume(TokenType.PUNCTUATION, "Expected ']' after '['", ']');
+      dataType += '[]';
+    }
+    
+    const name = this.consume(TokenType.IDENTIFIER, "Expected field name").value;
+
+    let initializer: ASTNode | undefined;
+    if (this.matchOperator('=')) {
+      initializer = this.parseExpression();
+    }
+
+    this.consume(TokenType.PUNCTUATION, "Expected ';' after field declaration", ';');
+
+    return {
+      type: NodeType.VARIABLE_DECLARATION,
+      location,
+      name,
+      dataType,
+      initializer,
+      children: initializer ? [initializer] : undefined
+    };
   }
 
   private parseVariableDeclarationWithoutSemicolon(): VariableDeclarationNode {

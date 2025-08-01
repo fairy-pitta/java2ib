@@ -111,7 +111,7 @@
   - Commit changes with message "feat: implement main converter API"
   - _Requirements: 2.1, 2.2, 9.1, 9.2, 9.3_
 
-- [-] 13. Add object-oriented programming support
+- [x] 13. Add object-oriented programming support
   - Implement class declaration transformation
   - Add inheritance handling and conversion
   - Transform static method declarations appropriately
@@ -120,7 +120,7 @@
   - Commit changes with message "feat: add object-oriented programming support"
   - _Requirements: 10.1, 10.2_
 
-- [ ] 14. Implement advanced Java construct handling
+- [-] 14. Implement advanced Java construct handling
   - Add main method extraction and conversion logic
   - Handle Java string operations and comparisons
   - Implement enhanced error messages with line numbers
