@@ -177,6 +177,36 @@ export interface ConversionMetadata {
   
   /** Time taken to complete the conversion, in milliseconds */
   processingTime: number;
+  
+  /** Performance breakdown by conversion stage (optional) */
+  performanceBreakdown?: {
+    /** Time spent in lexical analysis (ms) */
+    lexingTime?: number;
+    
+    /** Time spent in parsing (ms) */
+    parsingTime?: number;
+    
+    /** Time spent in AST transformation (ms) */
+    transformationTime?: number;
+    
+    /** Time spent in code generation (ms) */
+    codeGenerationTime?: number;
+  };
+  
+  /** Statistics about the conversion process */
+  statistics?: {
+    /** Number of tokens generated during lexing */
+    tokenCount?: number;
+    
+    /** Number of AST nodes created during parsing */
+    astNodeCount?: number;
+    
+    /** Size of input in characters */
+    inputSize?: number;
+    
+    /** Size of output in characters */
+    outputSize?: number;
+  };
 }
 
 /**

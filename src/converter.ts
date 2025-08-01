@@ -47,6 +47,13 @@ import { IBRulesEngine } from './ib-rules-engine';
 export class JavaToIBConverter {
   private transformer: ASTTransformer;
   private ibRules: IBRulesEngine;
+  
+  // Performance optimization: Cache frequently used generators
+  private generatorCache = new Map<string, PseudocodeGenerator>();
+  
+  // Performance optimization: Reuse lexer instances to avoid object creation overhead
+  private lexerPool: Lexer[] = [];
+  private maxPoolSize = 5;
 
   /**
    * Creates a new JavaToIBConverter instance.
@@ -105,7 +112,7 @@ export class JavaToIBConverter {
    * ```
    */
   convert(javaCode: string, options?: ConversionOptions): ConversionResult {
-    const startTime = Date.now();
+    const startTime = Date.now(); // Use Date.now() for compatibility
     
     // Handle null/undefined input
     if (javaCode === null || javaCode === undefined) {
@@ -122,7 +129,8 @@ export class JavaToIBConverter {
       );
     }
 
-    const originalLines = javaCode.split('\n').length;
+    // Performance optimization: Pre-calculate line count more efficiently
+    const originalLines = this.countLines(javaCode);
     const errors: ConversionError[] = [];
     const warnings: ConversionError[] = [];
 
@@ -142,9 +150,27 @@ export class JavaToIBConverter {
         );
       }
 
-      // Step 1: Lexical Analysis
-      const lexer = new Lexer(javaCode);
+      // Performance optimization: Early exit for very large files
+      if (javaCode.length > 1000000) { // 1MB limit
+        return this.createErrorResult(
+          'Input file too large (>1MB). Please split into smaller files.',
+          originalLines,
+          Date.now() - startTime,
+          [{
+            type: ErrorType.CONVERSION_ERROR,
+            message: 'Input file exceeds maximum size limit of 1MB',
+            location: { line: 1, column: 1 },
+            severity: ErrorSeverity.ERROR,
+          }]
+        );
+      }
+
+      // Step 1: Lexical Analysis - Use pooled lexer for better performance
+      const lexingStart = Date.now();
+      const lexer = this.getLexer(javaCode);
       const tokenizeResult = lexer.tokenize();
+      this.returnLexer(lexer);
+      const lexingTime = Date.now() - lexingStart;
       if (tokenizeResult.errors.length > 0) {
         // Enhance lexer errors with better messages
         const enhancedLexErrors = tokenizeResult.errors.map(error => ({
@@ -169,8 +195,10 @@ export class JavaToIBConverter {
       }
 
       // Step 2: Parsing
+      const parsingStart = Date.now();
       const parser = new Parser(tokenizeResult.tokens);
       const parseResult = parser.parse();
+      const parsingTime = Date.now() - parsingStart;
       if (parseResult.errors.length > 0) {
         // Enhance parser errors with better messages
         const enhancedParseErrors = parseResult.errors.map(error => ({
@@ -195,7 +223,9 @@ export class JavaToIBConverter {
       }
 
       // Step 3: AST Transformation
+      const transformationStart = Date.now();
       const transformResult = this.transformer.transform(parseResult.ast);
+      const transformationTime = Date.now() - transformationStart;
       if (transformResult.errors.length > 0) {
         // Enhance transformation errors with better messages
         const enhancedTransformErrors = transformResult.errors.map(error => ({
@@ -225,12 +255,14 @@ export class JavaToIBConverter {
         );
       }
 
-      // Step 4: Code Generation
-      const generator = createGeneratorFromConversionOptions(options);
+      // Step 4: Code Generation - Use cached generator for better performance
+      const codeGenerationStart = Date.now();
+      const generator = this.getGenerator(options);
       const pseudocode = generator.generate(transformResult.pseudocodeAST);
+      const codeGenerationTime = Date.now() - codeGenerationStart;
 
       const processingTime = Date.now() - startTime;
-      const convertedLines = pseudocode.split('\n').length;
+      const convertedLines = this.countLines(pseudocode);
 
       // Determine success based on whether we have critical errors
       const criticalErrors = errors.filter(e => e.severity === ErrorSeverity.ERROR);
@@ -253,6 +285,18 @@ export class JavaToIBConverter {
           originalLines,
           convertedLines,
           processingTime,
+          performanceBreakdown: {
+            lexingTime,
+            parsingTime,
+            transformationTime,
+            codeGenerationTime,
+          },
+          statistics: {
+            tokenCount: tokenizeResult.tokens.length,
+            astNodeCount: this.countASTNodes(parseResult.ast),
+            inputSize: javaCode.length,
+            outputSize: pseudocode.length,
+          },
         },
       };
 
@@ -324,5 +368,88 @@ export class JavaToIBConverter {
     } else {
       return `${message} ${lineInfo}`;
     }
+  }
+
+  /**
+   * Performance optimization: Efficiently count lines without creating array
+   */
+  private countLines(text: string): number {
+    let count = 1;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '\n') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * Performance optimization: Get a lexer from the pool or create new one
+   */
+  private getLexer(input: string): Lexer {
+    if (this.lexerPool.length > 0) {
+      const lexer = this.lexerPool.pop()!;
+      // Reset lexer with new input
+      (lexer as any).input = input;
+      (lexer as any).position = 0;
+      (lexer as any).line = 1;
+      (lexer as any).column = 1;
+      (lexer as any).errors = [];
+      return lexer;
+    }
+    return new Lexer(input);
+  }
+
+  /**
+   * Performance optimization: Return lexer to pool for reuse
+   */
+  private returnLexer(lexer: Lexer): void {
+    if (this.lexerPool.length < this.maxPoolSize) {
+      this.lexerPool.push(lexer);
+    }
+  }
+
+  /**
+   * Performance optimization: Get cached generator or create new one
+   */
+  private getGenerator(options?: ConversionOptions): PseudocodeGenerator {
+    const cacheKey = JSON.stringify(options || {});
+    
+    if (this.generatorCache.has(cacheKey)) {
+      return this.generatorCache.get(cacheKey)!;
+    }
+    
+    const generator = createGeneratorFromConversionOptions(options);
+    
+    // Limit cache size to prevent memory leaks
+    if (this.generatorCache.size < 10) {
+      this.generatorCache.set(cacheKey, generator);
+    }
+    
+    return generator;
+  }
+
+  /**
+   * Count the total number of AST nodes recursively
+   */
+  private countASTNodes(ast: any): number {
+    if (!ast) return 0;
+    
+    let count = 1; // Count this node
+    
+    if (ast.children && Array.isArray(ast.children)) {
+      for (const child of ast.children) {
+        count += this.countASTNodes(child);
+      }
+    }
+    
+    // Handle specific node types with additional child properties
+    if (ast.declarations && Array.isArray(ast.declarations)) {
+      for (const decl of ast.declarations) {
+        count += this.countASTNodes(decl);
+      }
+    }
+    
+    return count;
   }
 }

@@ -410,7 +410,7 @@ describe('Lexer', () => {
       
       expect(errors).toHaveLength(1);
       expect(errors[0].type).toBe(ErrorType.LEXICAL_ERROR);
-      expect(errors[0].message).toBe('Unterminated string literal');
+      expect(errors[0].message).toBe('Unterminated string literal. Missing closing quote (") before end of file.');
     });
 
     test('should report error for unterminated character literal', () => {
@@ -419,7 +419,7 @@ describe('Lexer', () => {
       
       expect(errors).toHaveLength(1);
       expect(errors[0].type).toBe(ErrorType.LEXICAL_ERROR);
-      expect(errors[0].message).toBe('Unterminated character literal');
+      expect(errors[0].message).toBe('Unterminated character literal. Missing closing single quote (\') or invalid character sequence.');
     });
 
     test('should continue tokenizing after errors', () => {

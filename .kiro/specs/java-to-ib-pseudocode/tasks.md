@@ -140,7 +140,7 @@
   - Commit changes with message "feat: add comprehensive integration tests"
   - _Requirements: 9.1, 9.2, 9.3, 4.4, 6.1, 6.2_
 
-- [-] 16. Add documentation and examples
+- [x] 16. Add documentation and examples
   - Create comprehensive README with usage examples
   - Add TypeDoc documentation for all public APIs
   - Include example Java-to-pseudocode conversions
@@ -149,7 +149,7 @@
   - Commit changes with message "docs: add comprehensive documentation and examples"
   - _Requirements: 2.3_
 
-- [ ] 17. Optimize and finalize library
+- [-] 17. Optimize and finalize library
   - Optimize performance for large Java files
   - Add final error message improvements
   - Create npm package configuration

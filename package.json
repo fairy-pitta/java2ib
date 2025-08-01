@@ -17,7 +17,10 @@
     "format": "prettier --write src/**/*.ts tests/**/*.ts",
     "docs": "typedoc",
     "clean": "rm -rf dist coverage docs/api",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "prepack": "npm run build",
+    "version": "npm run docs && git add docs/",
+    "postversion": "git push && git push --tags"
   },
   "keywords": [
     "java",
@@ -28,8 +31,16 @@
     "converter",
     "typescript"
   ],
-  "author": "",
+  "author": "Java to IB Pseudocode Converter",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/java-to-ib-pseudocode.git"
+  },
+  "bugs": {
+    "url": "https://github.com/example/java-to-ib-pseudocode/issues"
+  },
+  "homepage": "https://github.com/example/java-to-ib-pseudocode#readme",
   "type": "commonjs",
   "files": [
     "dist/**/*",

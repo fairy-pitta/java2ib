@@ -368,7 +368,7 @@ export class Parser {
     if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
       returnType = this.advance().value;
     } else {
-      throw new Error("Expected return type");
+      throw new Error("Expected return type (void, int, double, boolean, String, etc.)");
     }
     const isVoid = returnType === 'void';
 
@@ -386,7 +386,7 @@ export class Parser {
         if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
           paramType = this.advance().value;
         } else {
-          throw new Error("Expected parameter type");
+          throw new Error("Expected parameter type (int, double, boolean, String, etc.)");
         }
         
         // Handle array types (e.g., String[], int[])
@@ -444,7 +444,7 @@ export class Parser {
     if (this.check(TokenType.KEYWORD) || this.check(TokenType.IDENTIFIER)) {
       dataType = this.advance().value;
     } else {
-      throw new Error("Expected field type");
+      throw new Error("Expected field type (int, double, boolean, String, etc.)");
     }
     
     // Handle array types (e.g., int[], String[])
@@ -980,7 +980,12 @@ export class Parser {
       return expr;
     }
 
-    throw new Error(`Unexpected token: ${this.peek()?.value || 'EOF'}`);
+    const token = this.peek();
+    if (token) {
+      throw new Error(`Unexpected token '${token.value}' of type ${token.type}. Expected a literal, identifier, or '(' to start an expression.`);
+    } else {
+      throw new Error('Unexpected end of file. Expected a literal, identifier, or \'(\' to start an expression.');
+    }
   }
 
   // Helper methods

@@ -43,6 +43,7 @@ export class Lexer {
    * @returns Array of tokens and any lexical errors
    */
   tokenize(): { tokens: Token[], errors: ConversionError[] } {
+    // Performance optimization: Use regular array with push for simplicity and reliability
     const tokens: Token[] = [];
     this.errors = [];
 
@@ -115,7 +116,11 @@ export class Lexer {
     }
 
     // Invalid character
-    this.addError(ErrorType.LEXICAL_ERROR, `Unexpected character: '${char}'`, start);
+    this.addError(
+      ErrorType.LEXICAL_ERROR, 
+      `Unexpected character '${char}' (Unicode: ${char.charCodeAt(0)}). Only valid Java characters are allowed.`, 
+      start
+    );
     this.advance(); // Skip invalid character
     return null;
   }
@@ -181,7 +186,11 @@ export class Lexer {
     }
     
     if (this.isAtEnd()) {
-      this.addError(ErrorType.LEXICAL_ERROR, 'Unterminated string literal', start);
+      this.addError(
+        ErrorType.LEXICAL_ERROR, 
+        'Unterminated string literal. Missing closing quote (") before end of file.', 
+        start
+      );
     } else {
       this.advance(); // Skip closing quote
     }
@@ -213,7 +222,11 @@ export class Lexer {
     }
     
     if (this.isAtEnd() || this.peek() !== "'") {
-      this.addError(ErrorType.LEXICAL_ERROR, 'Unterminated character literal', start);
+      this.addError(
+        ErrorType.LEXICAL_ERROR, 
+        'Unterminated character literal. Missing closing single quote (\') or invalid character sequence.', 
+        start
+      );
     } else {
       this.advance(); // Skip closing quote
     }
