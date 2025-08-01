@@ -1,4 +1,4 @@
-# Java to IB Pseudocode Converter
+# java2ib
 
 A TypeScript library that converts Java code into IB Computer Science pseudocode format according to the official IB specification. This library is designed for educational purposes, enabling teachers and students to automatically convert Java code examples into the standardized pseudocode format used in the IB Computer Science curriculum.
 
@@ -16,13 +16,13 @@ A TypeScript library that converts Java code into IB Computer Science pseudocode
 ## Installation
 
 ```bash
-npm install java-to-ib-pseudocode
+npm install java2ib
 ```
 
 ## Quick Start
 
 ```typescript
-import { JavaToIBConverter } from 'java-to-ib-pseudocode';
+import { JavaToIBConverter } from 'java2ib';
 
 const converter = new JavaToIBConverter();
 
@@ -460,8 +460,7 @@ if (result.success) {
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd java-to-ib-pseudocode
+git java2ib
 
 # Install dependencies
 npm install
