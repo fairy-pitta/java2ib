@@ -114,6 +114,43 @@ export interface ReturnStatementNode extends ASTNode {
   expression?: ASTNode;
 }
 
+export interface SwitchStatementNode extends ASTNode {
+  type: NodeType.SWITCH_STATEMENT;
+  discriminant: ASTNode;
+  cases: (CaseClauseNode | DefaultClauseNode)[];
+}
+
+export interface CaseClauseNode extends ASTNode {
+  type: NodeType.CASE_CLAUSE;
+  test: ASTNode;
+  consequent: ASTNode[];
+}
+
+export interface DefaultClauseNode extends ASTNode {
+  type: NodeType.DEFAULT_CLAUSE;
+  consequent: ASTNode[];
+}
+
+export interface BreakStatementNode extends ASTNode {
+  type: NodeType.BREAK_STATEMENT;
+}
+
+export interface ContinueStatementNode extends ASTNode {
+  type: NodeType.CONTINUE_STATEMENT;
+}
+
+export interface EnhancedForLoopNode extends ASTNode {
+  type: NodeType.ENHANCED_FOR_LOOP;
+  variable: IdentifierNode;
+  iterable: ASTNode;
+  body: ASTNode;
+}
+
+export interface ArrayInitializationNode extends ASTNode {
+  type: NodeType.ARRAY_INITIALIZATION;
+  elements: ASTNode[];
+}
+
 export class Parser {
   private tokens: Token[];
   private current: number = 0;
@@ -522,9 +559,29 @@ export class Parser {
       return this.parseForLoop();
     }
 
+    // Switch statement
+    if (this.match('switch')) {
+      return this.parseSwitchStatement();
+    }
+
+    // Break statement
+    if (this.match('break')) {
+      return this.parseBreakStatement();
+    }
+
+    // Continue statement
+    if (this.match('continue')) {
+      return this.parseContinueStatement();
+    }
+
     // Block statement
     if (this.check(TokenType.PUNCTUATION, '{')) {
       return this.parseBlockStatement();
+    }
+
+    // Variable declaration (for switch cases and other contexts)
+    if (this.checkDataType()) {
+      return this.parseVariableDeclaration();
     }
 
     // Expression statement (assignment, method call, etc.)
@@ -573,11 +630,57 @@ export class Parser {
     };
   }
 
-  private parseForLoop(): ForLoopNode {
+  private parseForLoop(): ForLoopNode | EnhancedForLoopNode {
     const location = this.getCurrentLocation();
     
     this.consume(TokenType.PUNCTUATION, "Expected '(' after 'for'", '(');
 
+    // Check for enhanced for loop (for-each): for (Type var : iterable)
+    // Look ahead to see if this is an enhanced for loop pattern
+    const savedPosition = this.current;
+    let isEnhancedFor = false;
+    
+    if (this.checkDataTypeOrIdentifier()) {
+      this.advance(); // consume type
+      if (this.check(TokenType.IDENTIFIER)) {
+        this.advance(); // consume variable name
+        if (this.check(TokenType.OPERATOR, ':')) {
+          isEnhancedFor = true;
+        }
+      }
+    }
+    
+    // Reset position
+    this.current = savedPosition;
+    
+    if (isEnhancedFor) {
+      // Parse as enhanced for loop
+      this.advance(); // consume type
+      const variable = this.consume(TokenType.IDENTIFIER, "Expected variable name").value;
+      this.consume(TokenType.OPERATOR, "Expected ':' in enhanced for loop", ':');
+      
+      const iterable = this.parseExpression();
+      this.consume(TokenType.PUNCTUATION, "Expected ')' after enhanced for loop", ')');
+      const body = this.parseStatement();
+      
+      const variableNode = {
+        type: NodeType.IDENTIFIER,
+        location: this.getCurrentLocation(),
+        name: variable,
+        children: []
+      } as IdentifierNode;
+      
+      return {
+        type: NodeType.ENHANCED_FOR_LOOP,
+        location,
+        variable: variableNode,
+        iterable,
+        body,
+        children: [variableNode, iterable, body]
+      };
+    }
+
+    // Parse regular for loop
     // Parse initialization (optional)
     let initialization: ASTNode | undefined;
     if (!this.check(TokenType.PUNCTUATION, ';')) {
@@ -640,6 +743,100 @@ export class Parser {
       location,
       expression,
       children: expression ? [expression] : []
+    };
+  }
+
+  private parseSwitchStatement(): SwitchStatementNode {
+    const location = this.getCurrentLocation();
+    
+    this.consume(TokenType.PUNCTUATION, "Expected '(' after 'switch'", '(');
+    const discriminant = this.parseExpression();
+    this.consume(TokenType.PUNCTUATION, "Expected ')' after switch expression", ')');
+    this.consume(TokenType.PUNCTUATION, "Expected '{' after switch", '{');
+
+    const cases: (CaseClauseNode | DefaultClauseNode)[] = [];
+
+    while (!this.check(TokenType.PUNCTUATION, '}') && !this.isAtEnd()) {
+      if (this.match('case')) {
+        const caseLocation = this.getCurrentLocation();
+        const test = this.parseExpression();
+        this.consume(TokenType.OPERATOR, "Expected ':' after case value", ':');
+        
+        const consequent: ASTNode[] = [];
+        while (!this.check(TokenType.KEYWORD, 'case') && 
+               !this.check(TokenType.KEYWORD, 'default') && 
+               !this.check(TokenType.PUNCTUATION, '}') && 
+               !this.isAtEnd()) {
+          const stmt = this.parseStatement();
+          if (stmt) {
+            consequent.push(stmt);
+          }
+        }
+
+        cases.push({
+          type: NodeType.CASE_CLAUSE,
+          location: caseLocation,
+          test,
+          consequent,
+          children: [test, ...consequent]
+        });
+      } else if (this.match('default')) {
+        const defaultLocation = this.getCurrentLocation();
+        this.consume(TokenType.OPERATOR, "Expected ':' after 'default'", ':');
+        
+        const consequent: ASTNode[] = [];
+        while (!this.check(TokenType.KEYWORD, 'case') && 
+               !this.check(TokenType.KEYWORD, 'default') && 
+               !this.check(TokenType.PUNCTUATION, '}') && 
+               !this.isAtEnd()) {
+          const stmt = this.parseStatement();
+          if (stmt) {
+            consequent.push(stmt);
+          }
+        }
+
+        cases.push({
+          type: NodeType.DEFAULT_CLAUSE,
+          location: defaultLocation,
+          consequent,
+          children: consequent
+        });
+      } else {
+        // Skip unexpected tokens
+        this.advance();
+      }
+    }
+
+    this.consume(TokenType.PUNCTUATION, "Expected '}' after switch body", '}');
+
+    return {
+      type: NodeType.SWITCH_STATEMENT,
+      location,
+      discriminant,
+      cases,
+      children: [discriminant, ...cases]
+    };
+  }
+
+  private parseBreakStatement(): BreakStatementNode {
+    const location = this.getCurrentLocation();
+    this.consume(TokenType.PUNCTUATION, "Expected ';' after 'break'", ';');
+    
+    return {
+      type: NodeType.BREAK_STATEMENT,
+      location,
+      children: []
+    };
+  }
+
+  private parseContinueStatement(): ContinueStatementNode {
+    const location = this.getCurrentLocation();
+    this.consume(TokenType.PUNCTUATION, "Expected ';' after 'continue'", ';');
+    
+    return {
+      type: NodeType.CONTINUE_STATEMENT,
+      location,
+      children: []
     };
   }
 
@@ -973,6 +1170,26 @@ export class Parser {
       } as IdentifierNode;
     }
 
+    // Array initialization: {1, 2, 3}
+    if (this.match('{')) {
+      const elements: ASTNode[] = [];
+      
+      if (!this.check(TokenType.PUNCTUATION, '}')) {
+        do {
+          elements.push(this.parseExpression());
+        } while (this.match(','));
+      }
+      
+      this.consume(TokenType.PUNCTUATION, "Expected '}' after array elements", '}');
+      
+      return {
+        type: NodeType.ARRAY_INITIALIZATION,
+        location,
+        elements,
+        children: elements
+      } as ArrayInitializationNode;
+    }
+
     // Parenthesized expressions
     if (this.match('(')) {
       const expr = this.parseExpression();
@@ -1039,6 +1256,11 @@ export class Parser {
            this.check(TokenType.KEYWORD, 'byte');
     
     return isBasicType;
+  }
+
+  private checkDataTypeOrIdentifier(): boolean {
+    // Check for basic data types or any identifier (for custom classes)
+    return this.checkDataType() || this.check(TokenType.IDENTIFIER);
   }
 
   private advance(): Token {

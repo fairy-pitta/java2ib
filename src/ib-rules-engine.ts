@@ -109,6 +109,18 @@ export class IBRulesEngine {
       case 'endfor':
         return 'end loop';
       
+      case 'switch':
+        return condition ? `case ${condition} of` : 'case';
+      
+      case 'endswitch':
+        return 'end case';
+      
+      case 'case':
+        return condition ? `${condition}:` : 'case';
+      
+      case 'default':
+        return 'default:';
+      
       default:
         return type;
     }

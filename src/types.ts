@@ -375,4 +375,25 @@ export enum NodeType {
   
   /** Return statement in methods */
   RETURN_STATEMENT = 'ReturnStatement',
+  
+  /** Switch statement */
+  SWITCH_STATEMENT = 'SwitchStatement',
+  
+  /** Case clause in switch statement */
+  CASE_CLAUSE = 'CaseClause',
+  
+  /** Default clause in switch statement */
+  DEFAULT_CLAUSE = 'DefaultClause',
+  
+  /** Break statement */
+  BREAK_STATEMENT = 'BreakStatement',
+  
+  /** Continue statement */
+  CONTINUE_STATEMENT = 'ContinueStatement',
+  
+  /** Enhanced for loop (for-each) */
+  ENHANCED_FOR_LOOP = 'EnhancedForLoop',
+  
+  /** Array initialization expression */
+  ARRAY_INITIALIZATION = 'ArrayInitialization',
 }

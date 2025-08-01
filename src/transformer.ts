@@ -29,7 +29,14 @@ import {
   LiteralNode,
   IdentifierNode,
   ArrayAccessNode,
-  ReturnStatementNode
+  ReturnStatementNode,
+  SwitchStatementNode,
+  CaseClauseNode,
+  DefaultClauseNode,
+  BreakStatementNode,
+  ContinueStatementNode,
+  EnhancedForLoopNode,
+  ArrayInitializationNode
 } from './parser';
 
 // Pseudocode AST Node Types
@@ -145,7 +152,7 @@ export class VariableDeclarationRule extends BaseTransformationRule {
       
       // Transform the initializer expression
       const initializerNodes = context.transformer.transformNode(varNode.initializer, context);
-      const initializerContent = initializerNodes.map(n => n.content).join('');
+      const initializerContent = initializerNodes.map(n => n.content).join(' ');
       content = `${pseudocodeName} = ${initializerContent}`;
     } else {
       // For array declarations without initialization, just declare with UPPERCASE name
@@ -1139,9 +1146,17 @@ export class ProgramRule extends BaseTransformationRule {
     const result: PseudocodeNode[] = [];
 
     // Transform all declarations in the program
-    for (const declaration of programNode.declarations) {
-      const declarationNodes = context.transformer.transformNode(declaration, context);
-      result.push(...declarationNodes);
+    if (programNode.declarations && Array.isArray(programNode.declarations)) {
+      for (const declaration of programNode.declarations) {
+        const declarationNodes = context.transformer.transformNode(declaration, context);
+        result.push(...declarationNodes);
+      }
+    } else if (programNode.children && Array.isArray(programNode.children)) {
+      // Fallback to children if declarations is not available
+      for (const child of programNode.children) {
+        const childNodes = context.transformer.transformNode(child, context);
+        result.push(...childNodes);
+      }
     }
 
     return result;
@@ -1357,7 +1372,14 @@ export class ASTTransformer {
       new MethodDeclarationRule(),
       new ArrayAccessRule(),
       new MethodCallRule(),
-      new ReturnStatementRule()
+      new ReturnStatementRule(),
+      new SwitchStatementRule(),
+      new CaseClauseRule(),
+      new DefaultClauseRule(),
+      new BreakStatementRule(),
+      new ContinueStatementRule(),
+      new EnhancedForLoopRule(),
+      new ArrayInitializationRule()
     ];
 
     for (const rule of rules) {
@@ -1473,5 +1495,201 @@ export class ASTTransformer {
 declare module './transformer' {
   interface TransformationContext {
     transformer: ASTTransformer;
+  }
+}
+
+// Switch Statement Transformation Rule
+export class SwitchStatementRule extends BaseTransformationRule {
+  nodeType = NodeType.SWITCH_STATEMENT;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const switchNode = node as SwitchStatementNode;
+    const discriminantNodes = context.transformer.transformNode(switchNode.discriminant, context);
+    const discriminantExpr = discriminantNodes.map(n => n.content).join(' ');
+    
+    const result: PseudocodeNode[] = [];
+    
+    // Add switch header
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      `case ${discriminantExpr} of`,
+      node.location,
+      context.indentLevel
+    ));
+    
+    // Transform cases
+    const caseContext = { ...context, indentLevel: context.indentLevel + 1 };
+    for (const caseNode of switchNode.cases) {
+      const caseNodes = context.transformer.transformNode(caseNode, caseContext);
+      result.push(...caseNodes);
+    }
+    
+    // Add switch footer
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      'end case',
+      node.location,
+      context.indentLevel
+    ));
+    
+    return result;
+  }
+}
+
+// Case Clause Transformation Rule
+export class CaseClauseRule extends BaseTransformationRule {
+  nodeType = NodeType.CASE_CLAUSE;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const caseNode = node as CaseClauseNode;
+    const testNodes = context.transformer.transformNode(caseNode.test, context);
+    const testExpr = testNodes.map(n => n.content).join(' ');
+    
+    const result: PseudocodeNode[] = [];
+    
+    // Add case label
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      `${testExpr}:`,
+      node.location,
+      context.indentLevel
+    ));
+    
+    // Transform case body
+    const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+    for (const stmt of caseNode.consequent) {
+      // Skip break statements in case bodies as they're implicit in pseudocode
+      if (stmt.type !== NodeType.BREAK_STATEMENT) {
+        const stmtNodes = context.transformer.transformNode(stmt, bodyContext);
+        result.push(...stmtNodes);
+      }
+    }
+    
+    return result;
+  }
+}
+
+// Default Clause Transformation Rule
+export class DefaultClauseRule extends BaseTransformationRule {
+  nodeType = NodeType.DEFAULT_CLAUSE;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const defaultNode = node as DefaultClauseNode;
+    
+    const result: PseudocodeNode[] = [];
+    
+    // Add default label
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      'default:',
+      node.location,
+      context.indentLevel
+    ));
+    
+    // Transform default body
+    const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+    for (const stmt of defaultNode.consequent) {
+      // Skip break statements in default body as they're implicit in pseudocode
+      if (stmt.type !== NodeType.BREAK_STATEMENT) {
+        const stmtNodes = context.transformer.transformNode(stmt, bodyContext);
+        result.push(...stmtNodes);
+      }
+    }
+    
+    return result;
+  }
+}
+
+// Break Statement Transformation Rule
+export class BreakStatementRule extends BaseTransformationRule {
+  nodeType = NodeType.BREAK_STATEMENT;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    // In IB pseudocode, break statements are typically implicit in switch cases
+    // For loops, we might need to restructure the logic
+    // For now, we'll add a comment indicating the break
+    return [this.createPseudocodeNode(
+      PseudocodeNodeType.COMMENT,
+      '// break statement (exit loop/switch)',
+      node.location,
+      context.indentLevel
+    )];
+  }
+}
+
+// Continue Statement Transformation Rule
+export class ContinueStatementRule extends BaseTransformationRule {
+  nodeType = NodeType.CONTINUE_STATEMENT;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    // In IB pseudocode, continue statements are typically restructured
+    // For now, we'll add a comment indicating the continue
+    return [this.createPseudocodeNode(
+      PseudocodeNodeType.COMMENT,
+      '// continue statement (skip to next iteration)',
+      node.location,
+      context.indentLevel
+    )];
+  }
+}
+
+// Enhanced For Loop Transformation Rule
+export class EnhancedForLoopRule extends BaseTransformationRule {
+  nodeType = NodeType.ENHANCED_FOR_LOOP;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const forNode = node as EnhancedForLoopNode;
+    const variableName = context.ibRules.convertVariableName(forNode.variable.name);
+    const iterableNodes = context.transformer.transformNode(forNode.iterable, context);
+    const iterableExpr = iterableNodes.map(n => n.content).join(' ');
+    
+    const result: PseudocodeNode[] = [];
+    
+    // Add for-each loop header
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      `loop ${variableName} in ${iterableExpr}`,
+      node.location,
+      context.indentLevel
+    ));
+    
+    // Transform loop body
+    const bodyContext = { ...context, indentLevel: context.indentLevel + 1 };
+    const bodyNodes = context.transformer.transformNode(forNode.body, bodyContext);
+    result.push(...bodyNodes);
+    
+    // Add loop footer
+    result.push(this.createPseudocodeNode(
+      PseudocodeNodeType.STATEMENT,
+      'end loop',
+      node.location,
+      context.indentLevel
+    ));
+    
+    return result;
+  }
+}
+
+// Array Initialization Transformation Rule
+export class ArrayInitializationRule extends BaseTransformationRule {
+  nodeType = NodeType.ARRAY_INITIALIZATION;
+
+  transform(node: ASTNode, context: TransformationContext): PseudocodeNode[] {
+    const arrayNode = node as ArrayInitializationNode;
+    
+    const elements: string[] = [];
+    for (const element of arrayNode.elements) {
+      const elementNodes = context.transformer.transformNode(element, context);
+      elements.push(elementNodes.map(n => n.content).join(' '));
+    }
+    
+    const content = `[${elements.join(', ')}]`;
+    
+    return [this.createPseudocodeNode(
+      PseudocodeNodeType.EXPRESSION,
+      content,
+      node.location,
+      context.indentLevel
+    )];
   }
 }

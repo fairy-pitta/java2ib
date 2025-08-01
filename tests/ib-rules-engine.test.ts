@@ -94,6 +94,13 @@ describe('IBRulesEngine', () => {
       expect(engine.convertControlStructure('endfor')).toBe('end loop');
     });
 
+    test('should convert switch statement structures', () => {
+      expect(engine.convertControlStructure('switch', 'VARIABLE')).toBe('case VARIABLE of');
+      expect(engine.convertControlStructure('endswitch')).toBe('end case');
+      expect(engine.convertControlStructure('case', 'VALUE')).toBe('VALUE:');
+      expect(engine.convertControlStructure('default')).toBe('default:');
+    });
+
     test('should handle case insensitive input', () => {
       expect(engine.convertControlStructure('IF', 'x > 5')).toBe('if x > 5 then');
       expect(engine.convertControlStructure('WHILE', 'x < 10')).toBe('loop while x < 10');
@@ -101,8 +108,8 @@ describe('IBRulesEngine', () => {
     });
 
     test('should return unknown control structures unchanged', () => {
-      expect(engine.convertControlStructure('switch')).toBe('switch');
-      expect(engine.convertControlStructure('case')).toBe('case');
+      expect(engine.convertControlStructure('unknown')).toBe('unknown');
+      expect(engine.convertControlStructure('custom')).toBe('custom');
     });
   });
 
