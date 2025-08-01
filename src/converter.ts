@@ -1,5 +1,28 @@
 /**
  * Main converter class for Java to IB Pseudocode conversion
+ * 
+ * This class provides the primary interface for converting Java source code
+ * into IB Computer Science pseudocode format according to the official IB specification.
+ * 
+ * @example
+ * ```typescript
+ * import { JavaToIBConverter } from 'java-to-ib-pseudocode';
+ * 
+ * const converter = new JavaToIBConverter();
+ * const result = converter.convert('int x = 5;');
+ * console.log(result.pseudocode); // Output: X = 5
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * // Convert a method with options
+ * const options = { preserveComments: true, indentSize: 2 };
+ * const result = converter.convert(`
+ *   public int add(int a, int b) {
+ *     return a + b;
+ *   }
+ * `, options);
+ * ```
  */
 
 import { ConversionOptions, ConversionResult, ConversionError, ErrorType, ErrorSeverity, SourceLocation } from './types';
@@ -9,20 +32,77 @@ import { ASTTransformer } from './transformer';
 import { PseudocodeGenerator, createGeneratorFromConversionOptions } from './code-generator';
 import { IBRulesEngine } from './ib-rules-engine';
 
+/**
+ * The main converter class that handles Java to IB pseudocode conversion.
+ * 
+ * This class orchestrates the entire conversion process through a multi-stage pipeline:
+ * 1. Lexical analysis (tokenization)
+ * 2. Parsing (AST generation)
+ * 3. AST transformation (applying IB rules)
+ * 4. Code generation (producing formatted pseudocode)
+ * 
+ * The converter is designed to be stateless and thread-safe, allowing multiple
+ * conversions to be performed concurrently.
+ */
 export class JavaToIBConverter {
   private transformer: ASTTransformer;
   private ibRules: IBRulesEngine;
 
+  /**
+   * Creates a new JavaToIBConverter instance.
+   * 
+   * The constructor initializes the internal components needed for conversion:
+   * - IBRulesEngine for applying IB pseudocode formatting rules
+   * - ASTTransformer for converting Java AST nodes to pseudocode format
+   */
   constructor() {
     this.ibRules = new IBRulesEngine();
     this.transformer = new ASTTransformer();
   }
 
   /**
-   * Convert Java code to IB pseudocode format
-   * @param javaCode - The Java source code to convert
-   * @param options - Optional conversion settings
-   * @returns Conversion result with pseudocode and metadata
+   * Convert Java code to IB pseudocode format.
+   * 
+   * This method performs the complete conversion process from Java source code
+   * to IB Computer Science pseudocode format. The conversion follows the official
+   * IB specification for pseudocode syntax and formatting.
+   * 
+   * @param javaCode - The Java source code to convert. Must be valid Java syntax.
+   * @param options - Optional conversion settings to customize the output format.
+   * @returns A ConversionResult object containing the converted pseudocode,
+   *          success status, any errors or warnings, and conversion metadata.
+   * 
+   * @example
+   * ```typescript
+   * // Basic conversion
+   * const result = converter.convert('int x = 10;');
+   * if (result.success) {
+   *   console.log(result.pseudocode); // "X = 10"
+   * }
+   * ```
+   * 
+   * @example
+   * ```typescript
+   * // Conversion with options
+   * const options = { preserveComments: true, indentSize: 2 };
+   * const result = converter.convert(`
+   *   // Calculate area
+   *   public int calculateArea(int width, int height) {
+   *     return width * height;
+   *   }
+   * `, options);
+   * ```
+   * 
+   * @example
+   * ```typescript
+   * // Error handling
+   * const result = converter.convert('invalid java code');
+   * if (!result.success) {
+   *   result.errors.forEach(error => {
+   *     console.error(`${error.type}: ${error.message} at line ${error.location.line}`);
+   *   });
+   * }
+   * ```
    */
   convert(javaCode: string, options?: ConversionOptions): ConversionResult {
     const startTime = Date.now();

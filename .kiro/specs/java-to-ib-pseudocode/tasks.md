@@ -120,7 +120,7 @@
   - Commit changes with message "feat: add object-oriented programming support"
   - _Requirements: 10.1, 10.2_
 
-- [-] 14. Implement advanced Java construct handling
+- [x] 14. Implement advanced Java construct handling
   - Add main method extraction and conversion logic
   - Handle Java string operations and comparisons
   - Implement enhanced error messages with line numbers
@@ -129,7 +129,7 @@
   - Commit changes with message "feat: implement advanced Java construct handling"
   - _Requirements: 10.1, 10.4, 9.1_
 
-- [ ] 15. Create comprehensive integration tests
+- [x] 15. Create comprehensive integration tests
   - Write end-to-end tests for complete Java programs
   - Add tests for if-elif-else chains with complex conditions
   - Create deeply nested loop test scenarios
@@ -140,7 +140,7 @@
   - Commit changes with message "feat: add comprehensive integration tests"
   - _Requirements: 9.1, 9.2, 9.3, 4.4, 6.1, 6.2_
 
-- [ ] 16. Add documentation and examples
+- [-] 16. Add documentation and examples
   - Create comprehensive README with usage examples
   - Add TypeDoc documentation for all public APIs
   - Include example Java-to-pseudocode conversions
