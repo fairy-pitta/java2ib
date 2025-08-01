@@ -1,6 +1,6 @@
 {
   "name": "java-to-ib-pseudocode",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "TypeScript library that converts Java code into IB Computer Science pseudocode format",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
