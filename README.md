@@ -15,11 +15,63 @@ A TypeScript library that converts Java code into IB Computer Science pseudocode
 
 ## Installation
 
+### Node.js Environment
+
 ```bash
 npm install java2ib
 ```
 
+### Browser Environment
+
+For browser usage, you can use the pre-built browser bundle or run the development server:
+
+#### Option 1: Development Server
+```bash
+# Clone the repository
+git clone https://github.com/fairy-pitta/java2ib.git
+cd java2ib
+
+# Install dependencies
+npm install
+
+# Start the development server
+python3 -m http.server 8080
+
+# Open http://localhost:8080 in your browser
+```
+
+#### Option 2: Direct Browser Usage
+Include the browser bundle in your HTML:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Java to IB Converter</title>
+</head>
+<body>
+    <textarea id="javaInput" placeholder="Enter Java code here..."></textarea>
+    <button onclick="convertCode()">Convert</button>
+    <pre id="output"></pre>
+
+    <script type="module">
+        import * as Java2IB from './dist/browser/java2ib.es.js';
+        
+        window.converter = new Java2IB.JavaToIBConverter();
+        
+        window.convertCode = function() {
+            const input = document.getElementById('javaInput').value;
+            const result = window.converter.convert(input);
+            document.getElementById('output').textContent = result.pseudocode;
+        };
+    </script>
+</body>
+</html>
+```
+
 ## Quick Start
+
+### Node.js Usage
 
 ```typescript
 import { JavaToIBConverter } from 'java2ib';
@@ -77,6 +129,28 @@ console.log(complexResult.pseudocode);
 //     default:
 //         output "Sum is: " + SUM
 // end case
+```
+
+### Browser Usage
+
+For browser environments, you can use the web interface:
+
+```javascript
+// The converter is already initialized in the browser
+// Simply enter Java code in the textarea and click "Convert"
+
+// Or use it programmatically:
+const javaCode = `
+public class HelloWorld {
+    public static void main(String[] args) {
+        System.out.println("Hello, World!");
+    }
+}
+`;
+
+const result = window.converter.convert(javaCode);
+console.log(result.pseudocode);
+// Output: output "Hello, World!"
 ```
 
 ## Conversion Examples
@@ -460,7 +534,8 @@ if (result.success) {
 
 ```bash
 # Clone the repository
-git java2ib
+git clone https://github.com/fairy-pitta/java2ib.git
+cd java2ib
 
 # Install dependencies
 npm install
@@ -470,6 +545,12 @@ npm test
 
 # Build the library
 npm run build
+
+# Build browser version
+npm run build:browser
+
+# Start development server for browser testing
+python3 -m http.server 8080
 
 # Generate documentation
 npm run docs
@@ -540,13 +621,27 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Changelog
 
-### Version 1.0.0 (Latest)
+### Version 1.1.0 (Latest)
+- ✅ **New Features**:
+  - Complete browser compatibility with interactive web interface
+  - Vite-based build system for optimized browser bundles
+  - File upload functionality for browser version
+  - Responsive design for mobile and desktop usage
+- ✅ **Quality Improvements**:
+  - Comprehensive E2E testing with Playwright across all major browsers
+  - Cross-browser compatibility (Chrome, Firefox, Safari, Mobile browsers)
+  - Enhanced documentation with browser usage examples
+  - Improved development workflow with browser testing
+
+### Version 1.0.0
 - ✅ **New Features**:
   - Switch statement conversion (`switch-case` → `case...of...end case`)
   - Enhanced for loop support (`for (Type item : collection)` → `loop ITEM in COLLECTION`)
   - Array initialization syntax (`{1, 2, 3}` → `[1, 2, 3]`)
   - Break and continue statement handling with explanatory comments
   - Custom class type support in enhanced for loops
+  - **Browser support**: Web-based converter with interactive interface
+  - **Browser bundle**: Pre-built ES modules for direct browser usage
 - ✅ **Performance Improvements**:
   - Lexer object pooling for better memory efficiency
   - Generator caching system for repeated conversions
@@ -557,6 +652,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
   - Detailed performance monitoring and metrics
   - Improved error handling with recovery mechanisms
   - Enhanced TypeScript type definitions
+  - **Browser testing**: Playwright-based browser test suite
 
 ### Version 0.9.0
 - Initial release with basic Java to IB pseudocode conversion

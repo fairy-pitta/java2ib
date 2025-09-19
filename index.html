@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Java to IB Pseudocode Converter - Browser Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-section, .output-section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        textarea:focus {
+            border-color: #007acc;
+            outline: none;
+        }
+        button {
+            background-color: #007acc;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #005a9e;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .error {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success {
+            color: #2e7d32;
+            background-color: #e8f5e8;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .examples {
+            margin-top: 30px;
+        }
+        .example-button {
+            background-color: #6c757d;
+            margin: 5px;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        .example-button:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Java to IB Pseudocode Converter</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 30px;">
+            ブラウザで直接動作するJavaからIB疑似コードへの変換ツール
+        </p>
+        
+        <div class="input-section">
+            <label for="javaInput">Java Code:</label>
+            <div style="margin-bottom: 10px;">
+                <input type="file" id="fileInput" accept=".java,.txt" style="margin-right: 10px;">
+                <button onclick="loadFromFile()" style="padding: 6px 12px; font-size: 14px;">ファイルから読み込み</button>
+                <button onclick="downloadResult()" style="padding: 6px 12px; font-size: 14px; margin-left: 10px;">結果をダウンロード</button>
+            </div>
+            <textarea id="javaInput" placeholder="ここにJavaコードを入力してください...\n\n例:\nint x = 5;\nSystem.out.println(x);"></textarea>
+        </div>
+        
+        <div style="text-align: center;">
+            <button onclick="convertCode()">Convert to IB Pseudocode</button>
+            <button onclick="clearAll()">Clear All</button>
+        </div>
+        
+        <div class="output-section">
+            <label for="pseudocodeOutput">IB Pseudocode:</label>
+            <textarea id="pseudocodeOutput" readonly placeholder="変換されたIB疑似コードがここに表示されます..."></textarea>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="examples">
+            <h3>サンプルコード:</h3>
+            <button class="example-button" onclick="loadExample('basic')">基本的な変数</button>
+            <button class="example-button" onclick="loadExample('loop')">ループ</button>
+            <button class="example-button" onclick="loadExample('method')">メソッド</button>
+            <button class="example-button" onclick="loadExample('array')">配列</button>
+        </div>
+    </div>
+    
+    <script type="module">
+        // 実際のライブラリをインポート
+        import * as Java2IB from './dist/browser/java2ib.es.js';
+        
+        // グローバルに変換器を設定
+        window.converter = new Java2IB.JavaToIBConverter();
+        
+        // 変換関数
+        window.convertCode = function() {
+            const javaInput = document.getElementById('javaInput');
+            const pseudocodeOutput = document.getElementById('pseudocodeOutput');
+            const status = document.getElementById('status');
+            
+            const javaCode = javaInput.value.trim();
+            
+            if (!javaCode) {
+                showStatus('Javaコードを入力してください。', 'error');
+                return;
+            }
+            
+            try {
+                const result = window.converter.convert(javaCode);
+                
+                if (result.success) {
+                    pseudocodeOutput.value = result.pseudocode;
+                    showStatus(`変換完了！ (${result.metadata.processingTime.toFixed(2)}ms)`, 'success');
+                } else {
+                    pseudocodeOutput.value = '';
+                    const errorMsg = result.errors.map(e => e.message).join('\n');
+                    showStatus(`変換エラー: ${errorMsg}`, 'error');
+                }
+            } catch (error) {
+                pseudocodeOutput.value = '';
+                showStatus(`予期しないエラー: ${error.message}`, 'error');
+            }
+        };
+        
+        // ステータス表示
+        window.showStatus = function(message, type) {
+            const status = document.getElementById('status');
+            status.innerHTML = `<div class="${type}">${message}</div>`;
+            setTimeout(() => {
+                status.innerHTML = '';
+            }, 5000);
+        };
+        
+        // クリア機能
+        window.clearAll = function() {
+            document.getElementById('javaInput').value = '';
+            document.getElementById('pseudocodeOutput').value = '';
+            document.getElementById('status').innerHTML = '';
+        };
+        
+        // サンプルコード読み込み
+        window.loadExample = function(type) {
+            const examples = {
+                basic: `int x = 5;
+int y = 10;
+int sum = x + y;
+System.out.println(sum);`,
+                loop: `for (int i = 0; i < 10; i++) {
+    System.out.println(i);
+}`,
+                method: `public int add(int a, int b) {
+    return a + b;
+}`,
+                array: `int[] numbers = {1, 2, 3, 4, 5};
+for (int num : numbers) {
+    System.out.println(num);
+}`
+            };
+            
+            document.getElementById('javaInput').value = examples[type] || '';
+        };
+        
+        // ファイルから読み込み
+        window.loadFromFile = function() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showStatus('ファイルを選択してください。', 'error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('javaInput').value = e.target.result;
+                showStatus(`ファイル "${file.name}" を読み込みました。`, 'success');
+            };
+            reader.onerror = function() {
+                showStatus('ファイルの読み込みに失敗しました。', 'error');
+            };
+            reader.readAsText(file);
+        };
+        
+        // 結果をダウンロード
+        window.downloadResult = function() {
+            const pseudocodeOutput = document.getElementById('pseudocodeOutput');
+            const content = pseudocodeOutput.value;
+            
+            if (!content.trim()) {
+                showStatus('ダウンロードする内容がありません。まず変換を実行してください。', 'error');
+                return;
+            }
+            
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'ib_pseudocode.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showStatus('ファイルをダウンロードしました。', 'success');
+        };
+    </script>
+</body>
+</html>
